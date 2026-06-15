@@ -1532,7 +1532,31 @@
   document.getElementById('playBtn').onclick=()=>{ if(boarReady){ charSelEl.classList.add('hidden'); startMatch(); } };
 
   // ============ ONLINE MULTIPLAYER (PeerJS, host-authoritative) — Stage 1: connection + lobby ============
-  const NET={ mode:'off', peer:null, conns:[], hostConn:null, code:null, mySlot:0 };
+  const NET={ mode:'off', peer:null, conns:[], hostConn:null, code:null, mySlot:0, opened:false, kicked:false };
+  // WebRTC ICE servers. STUN discovers your public address; a TURN relay is REQUIRED whenever both
+  // players sit behind restrictive NATs (mobile data, CGNAT, locked-down routers) — without one the
+  // peer-to-peer channel silently never opens and the joiner times out as "Disconnected".
+  // These public relays are best-effort and rate-limited. For reliable play, sign up for a free
+  // TURN account (e.g. https://dashboard.metered.ca → Open Relay, 50GB/mo free) and paste your own
+  // {urls,username,credential} entries below.
+  const ICE_SERVERS=[
+    { urls:'stun:stun.l.google.com:19302' },
+    { urls:'stun:stun1.l.google.com:19302' },
+    { urls:'turn:eu-0.turn.peerjs.com:3478', username:'peerjs', credential:'peerjsp' },
+    { urls:'turn:us-0.turn.peerjs.com:3478', username:'peerjs', credential:'peerjsp' },
+    { urls:'turn:openrelay.metered.ca:80',                 username:'openrelayproject', credential:'openrelayproject' },
+    { urls:'turn:openrelay.metered.ca:443',                username:'openrelayproject', credential:'openrelayproject' },
+    { urls:'turn:openrelay.metered.ca:443?transport=tcp',  username:'openrelayproject', credential:'openrelayproject' },
+  ];
+  const PEER_OPTS={ config:{ iceServers:ICE_SERVERS } };
+  function peerErrMsg(e){
+    const t=(e&&e.type)||'';
+    if(t==='peer-unavailable')   return 'No room with that code — double-check it, and make sure the host is sitting on the lobby screen.';
+    if(t==='unavailable-id')     return 'That room code is already in use — have the host open a fresh room.';
+    if(t==='browser-incompatible')return 'This browser can’t do WebRTC — try Chrome, Edge, or Firefox.';
+    if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed') return 'Signaling/network error — wait a moment and try again.';
+    return 'Could not connect'+(t?(': '+t):'');
+  }
   const lobbyEl=document.getElementById('lobby');
   const roomCodeEl=document.getElementById('roomCode');
   const lobbyMsgEl=document.getElementById('lobbyMsg');
@@ -1587,10 +1611,10 @@
     if(!boarReady){ return; }
     NET.mode='host'; NET.code=randCode(); NET.mySlot=0; SND.start();
     slots[0]={char:0,type:'local',name:'P1'}; slots[1]={char:1,type:'cpu'}; slots[2]={char:2,type:'cpu'}; slots[3]={char:3,type:'cpu'};
-    NET.peer=new Peer('frjd-'+NET.code);
+    NET.peer=new Peer('frjd-'+NET.code, PEER_OPTS);
     NET.peer.on('open',()=>showLobby(true));
     NET.peer.on('connection',conn=>setupHostConn(conn));
-    NET.peer.on('error',e=>{ showLobby(true); lobbyError('Host error: '+(e.type||e)); });
+    NET.peer.on('error',e=>{ showLobby(true); lobbyError(peerErrMsg(e)); });
     clearInterval(NET.hbTimer); NET.hbTimer=setInterval(hostHeartbeat,1000);
   }
   function setupHostConn(conn){
@@ -1631,14 +1655,21 @@
   // ---- client ----
   function joinOnline(code){
     if(!window.Peer){ alert('Networking failed to load (needs internet).'); return; }
-    NET.mode='client'; NET.code=code; NET.mySlot=-1; NET.lastHostMsg=performance.now(); SND.start();
-    NET.peer=new Peer();
+    NET.mode='client'; NET.code=code; NET.mySlot=-1; NET.opened=false; NET.kicked=false;
+    NET.lastHostMsg=performance.now(); NET.joinedAt=performance.now(); SND.start();
+    NET.peer=new Peer(undefined, PEER_OPTS);
     NET.peer.on('open',()=>{ const conn=NET.peer.connect('frjd-'+code,{reliable:true}); NET.hostConn=conn; setupClientConn(conn); showLobby(false); });
-    NET.peer.on('error',e=>{ showLobby(false); lobbyError('Could not connect: '+(e.type||e)); });
+    NET.peer.on('error',e=>{ if(NET.kicked) return; showLobby(false); lobbyError(peerErrMsg(e)); });
     clearInterval(NET.checkTimer); NET.checkTimer=setInterval(clientCheck,1000);
   }
-  function clientCheck(){ if(NET.mode==='client' && performance.now()-NET.lastHostMsg>5000) hostGone(); }
-  function hostGone(){
+  function clientCheck(){
+    if(NET.mode!=='client' || NET.kicked) return;
+    const now=performance.now();
+    if(!NET.opened){                                   // channel still being established — give it room
+      if(now-NET.joinedAt>20000) hostGone('Couldn’t reach the host. Your network may be blocking the peer-to-peer connection — try again, or have someone on a different network host the room.');
+    } else if(now-NET.lastHostMsg>5000) hostGone('Lost connection to the host.');
+  }
+  function hostGone(msg){
     if(NET.mode!=='client') return;
     clearInterval(NET.checkTimer);
     try{ if(NET.peer) NET.peer.destroy(); }catch(e){}
@@ -1647,20 +1678,21 @@
     document.getElementById('lobby').classList.add('hidden');
     const ov=document.getElementById('overlay'); ov.classList.remove('hidden');
     ov.innerHTML=`<h1>Disconnected</h1><div class="tag">❄ FRELJORD FALLS ❄</div>
-      <p>Lost connection to the host.</p><button onclick="location.reload()">BACK TO MENU</button>`;
+      <p>${msg||'Lost connection to the host.'}</p><button onclick="location.reload()">BACK TO MENU</button>`;
   }
   function setupClientConn(conn){
-    conn.on('open',()=>{ lobbyMsgEl.style.color=''; lobbyMsgEl.textContent='Connected! Waiting for the host…'; });
+    conn.on('open',()=>{ NET.opened=true; NET.lastHostMsg=performance.now(); lobbyMsgEl.style.color=''; lobbyMsgEl.textContent='Connected! Waiting for the host…'; });
     conn.on('data',d=>onClientData(d));
-    conn.on('close',()=>lobbyError('Lost connection to host.'));
+    conn.on('close',()=>{ if(NET.mode==='client' && !NET.kicked) hostGone('The host left or closed the room.'); });
+    conn.on('error',()=>{});                            // let clientCheck decide; avoids a transient blip killing the lobby
   }
   function onClientData(d){
     NET.lastHostMsg=performance.now();
     if(d.t==='hb') return;
     if(d.t==='welcome'){ NET.mySlot=d.slot; applyServerSlots(d.slots); lobbyMsgEl.style.color=''; lobbyMsgEl.textContent='Pick your champion, then wait for the host.'; renderLobby(); }
     else if(d.t==='lobby'){ applyServerSlots(d.slots); renderLobby(); }
-    else if(d.t==='full'){ lobbyError('Room is full.'); }
-    else if(d.t==='busy'){ lobbyError('A match is already in progress — try again when it ends.'); }
+    else if(d.t==='full'){ NET.kicked=true; clearInterval(NET.checkTimer); lobbyError('Room is full.'); }
+    else if(d.t==='busy'){ NET.kicked=true; clearInterval(NET.checkTimer); lobbyError('A match is already in progress — try again when it ends.'); }
     else if(d.t==='start'){ applyServerSlots(d.slots); clientStart(); }
     else if(d.t==='cd'){ showCountdown(d.n); if(d.n==='GO!'){ SND.sfx('go'); startBGM(); } else if(d.n) SND.sfx('count'); }
     else if(d.t==='snap'){ applySnap(d); }
