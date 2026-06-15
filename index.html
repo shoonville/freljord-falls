@@ -1,0 +1,1769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Freljord Falls</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#05101f;
+    font-family:"Trebuchet MS","Segoe UI",sans-serif;color:#eaf6ff;user-select:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+
+  #topbar{position:fixed;top:0;left:0;right:0;display:flex;justify-content:center;
+    align-items:flex-start;gap:14px;padding:10px 14px;pointer-events:none;z-index:5}
+  .pcard{display:flex;flex-direction:column;align-items:center;width:150px}
+  .prow{display:flex;align-items:center;gap:6px;width:100%}
+  .portrait{width:42px;height:42px;border-radius:10px;border:3px solid #ffffff;
+    display:flex;align-items:center;justify-content:center;font-size:22px;
+    box-shadow:0 3px 8px rgba(0,0,0,.6),inset 0 0 10px rgba(255,255,255,.4);flex:none;transition:box-shadow .2s,border-color .2s}
+  .arrow{color:#ff3b1f;font-size:20px;text-shadow:0 0 4px #000;font-weight:bold}
+  .barwrap{flex:1;height:16px;background:#06243a;border:2px solid #0a3a5e;
+    border-radius:4px;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,.6)}
+  .bar{height:100%;width:100%;background:linear-gradient(#d6f4ff,#36b4ff);
+    transition:width .12s;box-shadow:inset 0 -3px 5px rgba(0,0,0,.3)}
+  .pname{font-size:11px;letter-spacing:1px;margin-top:3px;color:#bcdcf0;text-shadow:0 1px 2px #000}
+  .dead .portrait{filter:grayscale(1) brightness(.5)}
+  .dead .bar{background:#555}
+  #timer{font-size:46px;font-weight:bold;color:#ffd21f;letter-spacing:2px;
+    text-shadow:0 0 12px #ff9000,0 3px 0 #a85a00,0 4px 6px #000;
+    margin:0 6px;min-width:130px;text-align:center}
+
+  #overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;z-index:10;
+    background:radial-gradient(circle at 50% 40%,rgba(8,28,48,.5),rgba(3,10,22,.9))}
+  #overlay h1,#charselect h1{font-size:clamp(36px,8vw,84px);letter-spacing:5px;text-transform:uppercase;margin-bottom:6px;font-weight:bold;
+    background:linear-gradient(#ffffff 0%,#e2f5ff 32%,#9bd6ff 62%,#3f9bdf 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
+    filter:drop-shadow(0 2px 0 #1c5680) drop-shadow(0 4px 9px rgba(0,0,0,.55)) drop-shadow(0 0 16px rgba(130,205,255,.75));}
+  #overlay .tag{font-size:13px;letter-spacing:4px;color:#7fb8da;margin-bottom:16px}
+  #overlay p{max-width:540px;line-height:1.55;color:#d6ecfb;margin:5px 0}
+  .keys{display:flex;gap:6px;margin:16px 0 4px;justify-content:center;flex-wrap:wrap}
+  .key{background:#13354f;border:2px solid #2f6a96;border-bottom-width:4px;border-radius:8px;
+    padding:6px 10px;font-weight:bold;min-width:34px}
+  .key.wide{min-width:120px}
+  button{margin-top:18px;font:inherit;font-size:20px;font-weight:bold;cursor:pointer;
+    color:#06243a;background:linear-gradient(#9fe4ff,#3aa6ff);border:none;border-radius:14px;
+    padding:14px 40px;box-shadow:0 6px 0 #1f6f9e,0 10px 22px rgba(0,0,0,.5);letter-spacing:2px}
+  button:active{transform:translateY(4px);box-shadow:0 2px 0 #1f6f9e}
+  .small{font-size:12px;color:#7fa6c4;margin-top:18px}
+  .hidden{display:none!important}
+  /* character select */
+  .menubtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+  .menubtns button{margin-top:0}
+  button.alt{background:linear-gradient(#7fc4ef,#3a7fb5);box-shadow:0 6px 0 #1f5278,0 10px 22px rgba(0,0,0,.5)}
+  button.alt:active{box-shadow:0 2px 0 #1f5278}
+  #joinRow{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:14px}
+  #codeInput{font:inherit;font-size:24px;font-weight:bold;letter-spacing:6px;text-align:center;text-transform:uppercase;
+    width:140px;padding:10px;border-radius:12px;border:2px solid #2f6a96;background:#0a2236;color:#eaf6ff;outline:none}
+  #charselect,#lobby{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;z-index:11;background:radial-gradient(circle at 50% 38%,rgba(10,34,58,.6),rgba(3,10,22,.94))}
+  #lobby .tag{font-size:14px;letter-spacing:3px;color:#9fd0ee;margin-bottom:4px}
+  #roomCode{color:#ffd24a;letter-spacing:4px;font-weight:bold}
+  #lobbySlots{display:flex;gap:16px;margin:20px 0 8px;flex-wrap:wrap;justify-content:center}
+  .slot .role{font-size:11px;letter-spacing:1px;font-weight:bold;padding:3px 0;width:100%;border-radius:6px}
+  .role.host{background:#3a7fb5;color:#eaf6ff}
+  .role.you{background:linear-gradient(#9fe4ff,#3aa6ff);color:#06243a}
+  .role.remote{background:#2e6b46;color:#dfffe9}
+  .role.open{background:#21364a;color:#8fb0c8}
+  .role.cpu{background:#274b66;color:#bcdcf0}
+  #charselect .tag{font-size:13px;letter-spacing:4px;color:#8fc8ea;margin-bottom:6px}
+  #slots{display:flex;gap:16px;margin:20px 0 8px;flex-wrap:wrap;justify-content:center}
+  .slot{width:148px;background:rgba(10,32,54,.72);border:2px solid #2f6a96;border-radius:14px;padding:12px 10px;
+    display:flex;flex-direction:column;align-items:center;gap:9px;
+    box-shadow:0 6px 16px rgba(0,0,0,.5),inset 0 0 16px rgba(90,170,225,.16)}
+  .slotnum{font-size:11px;letter-spacing:3px;color:#9fd0ee}
+  .slotrow{display:flex;align-items:center;gap:6px}
+  .slotface{width:58px;height:58px;border-radius:12px;border:3px solid #fff;display:flex;align-items:center;
+    justify-content:center;font-size:30px;box-shadow:0 3px 8px rgba(0,0,0,.6),inset 0 0 10px rgba(255,255,255,.4)}
+  .slotname{font-size:14px;font-weight:bold;letter-spacing:1px;color:#eaf6ff;text-shadow:0 1px 2px #000}
+  .cyc{margin:0;padding:5px 9px;font-size:16px;border-radius:8px;background:#13354f;border:2px solid #2f6a96;
+    border-bottom-width:3px;color:#cfeaff;cursor:pointer;box-shadow:none;letter-spacing:0}
+  .cyc:active{transform:translateY(2px);box-shadow:none}
+  .ctrl{margin:0;padding:6px 0;width:100%;font-size:13px;font-weight:bold;letter-spacing:1px;border-radius:8px;
+    cursor:pointer;border:none;box-shadow:none}
+  .ctrl.human{background:linear-gradient(#9fe4ff,#3aa6ff);color:#06243a}
+  .ctrl.cpu{background:#274b66;color:#bcdcf0}
+  .ctrl:active{transform:translateY(2px);box-shadow:none}
+  #muteBtn{position:fixed;top:12px;right:14px;z-index:30;width:46px;height:46px;
+    border-radius:50%;border:2px solid #2f6a96;background:rgba(10,30,50,.8);color:#bfe9ff;
+    font-size:22px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.5);
+    display:flex;align-items:center;justify-content:center;padding:0;margin:0}
+  #muteBtn:active{transform:translateY(2px)}
+  #vol{position:fixed;top:24px;right:68px;z-index:30;width:120px;height:6px;cursor:pointer;
+    -webkit-appearance:none;appearance:none;background:#1a4a6e;border-radius:4px;outline:none;
+    box-shadow:0 2px 6px rgba(0,0,0,.5)}
+  #vol::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;
+    background:#9fe4ff;border:2px solid #06243a;cursor:pointer}
+  #vol::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#9fe4ff;border:2px solid #06243a;cursor:pointer}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    z-index:20;color:#8fb8d6;font-size:18px;letter-spacing:2px}
+  #boltCd{position:fixed;transform:translate(-50%,-100%);z-index:6;font-size:26px;font-weight:bold;
+    color:#fff14a;text-shadow:0 0 10px #ff9000,0 0 4px #fff,0 2px 3px #000;pointer-events:none;display:none}
+  #anvilCd{position:fixed;transform:translate(-50%,-100%);z-index:6;font-size:26px;font-weight:bold;
+    color:#ff5a4a;text-shadow:0 0 10px #000,0 0 5px #c9ccd2,0 2px 3px #000;pointer-events:none;display:none}
+  #countdown{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:12;
+    pointer-events:none;font-family:"Trebuchet MS",sans-serif;font-weight:bold;color:#ff9d2e;
+    font-size:clamp(96px,24vw,300px);line-height:1;
+    text-shadow:0 3px 0 #e07d18,0 6px 0 #c76a14,0 9px 0 #ad590f,0 12px 0 #93490b,0 16px 26px rgba(0,0,0,.65),0 0 40px #ffbb5e;}
+  #countdown.pop{animation:cdpop .8s ease-out}
+  @keyframes cdpop{0%{transform:scale(.3);opacity:0}22%{transform:scale(1.18);opacity:1}65%{transform:scale(1)}100%{transform:scale(.9);opacity:.85}}
+  #ytbgm{position:fixed;right:0;bottom:0;width:160px;height:90px;opacity:0;pointer-events:none;z-index:-1}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="ytbgm"></div>
+<div id="boltCd"></div>
+<div id="anvilCd"></div>
+<div id="countdown"></div>
+<input id="vol" type="range" min="0" max="100" value="45" title="Music volume">
+<button id="muteBtn" title="Mute / unmute">🔊</button>
+<div id="loading">LOADING ICE…</div>
+
+<div id="topbar" class="hidden">
+  <div class="pcard" id="card0"></div>
+  <div class="pcard" id="card1"></div>
+  <div id="timer">1:30</div>
+  <div class="pcard" id="card2"></div>
+  <div class="pcard" id="card3"></div>
+</div>
+
+<div id="overlay">
+  <h1>Freljord Falls</h1>
+  <div class="tag">❄ AURORA ICE FLOE · LAST CUB AFLOAT WINS ❄</div>
+  <p>Ride your polar bear cub across the frozen floe. The <b>rim is brittle</b> — hit an edge once and it cracks, twice and it crashes into the sea, shrinking the floe.</p>
+  <p>Grab power-ups dropped from the sky, <b>press SPACE to dash</b> and slam rivals off the edge. Last cub afloat — or the fullest bar at 0:00 — wins!</p>
+  <div class="keys">
+    <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
+    <span class="key">/</span><span class="key">↑</span><span class="key">←</span><span class="key">↓</span><span class="key">→</span>
+    <span class="key wide">SPACE = DASH</span>
+  </div>
+  <div class="menubtns">
+    <button id="startBtn">LOCAL PLAY</button>
+    <button id="hostBtn" class="alt">HOST ONLINE</button>
+    <button id="joinBtn" class="alt">JOIN ONLINE</button>
+  </div>
+  <div id="joinRow" class="hidden">
+    <input id="codeInput" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false">
+    <button id="connectBtn" class="alt">CONNECT</button>
+  </div>
+  <div class="small">Shove rivals into the rim to break it · dash to slam them off · don't fall through the gaps</div>
+</div>
+
+<div id="lobby" class="hidden">
+  <h1>Freljord Falls</h1>
+  <div class="tag">ONLINE LOBBY · ROOM <span id="roomCode">····</span></div>
+  <div id="lobbySlots"></div>
+  <div id="lobbyMsg" class="small"></div>
+  <button id="lobbyStartBtn">START MATCH</button>
+  <button id="lobbyBackBtn" class="alt" style="font-size:14px;padding:9px 22px">LEAVE</button>
+</div>
+
+<div id="charselect" class="hidden">
+  <h1>Freljord Falls</h1>
+  <div class="tag">CHOOSE YOUR CHAMPIONS</div>
+  <div id="slots"></div>
+  <button id="playBtn">PLAY</button>
+  <div class="small">◀ ▶ pick a champion · click HUMAN / CPU to set who controls each slot</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script>
+(() => {
+  const TH = window.THREE;
+  if(!TH){ document.getElementById('loading').textContent='Failed to load 3D engine (need internet).'; return; }
+
+  // ============ CONFIG ============
+  const R_OUT = 11;       // outer radius
+  const R_CORE = 4.5;     // always-solid central disc
+  const BR    = 1.0;      // bear radius
+  const MATCH = 90;       // seconds
+  const NSEG  = 20;       // breakable rim segments
+  const STEP  = Math.PI*2/NSEG;
+
+  const DASH_CD=1.25, DASH_TIME=0.22, DASH_IMP=17, DASH_DMG=11, DASH_BONUS=7;
+  const GROW_T=3, GROW_SCALE=1.7, SHRINK_T=5, SHRINK_SCALE=0.6, STUN_T=1, STUN_R=4.6;
+
+  const PLAYERS = [
+    {name:'TRYND', emoji:'⚔️', col:0xff7a2a, ui:'#ff7a2a', eye:0xfff2a8}, // you
+    {name:'GRAGAS',emoji:'🍺', col:0xffd21f, ui:'#ffd21f', eye:0xc7ffd0},
+    {name:'ASHE',  emoji:'🏹', col:0xff5a8a, ui:'#ff5a8a', eye:0xffc9e6},
+    {name:'BRAUM', emoji:'🛡️', col:0x3aa0ff, ui:'#3aa0ff', eye:0xc9e9ff},
+  ];
+  // 4 player slots — each picks a champion (index into PLAYERS) and a control type:
+  // 'local' = this machine's keyboard, 'cpu' = AI, 'remote' = a networked player
+  const slots = [
+    {char:0, type:'local'},
+    {char:1, type:'cpu'},
+    {char:2, type:'cpu'},
+    {char:3, type:'cpu'},
+  ];
+
+  const BOAR_YAW = 0;        // rotate the boar if it faces the wrong way (try Math.PI, or ±Math.PI/2)
+  let boarTemplate=null, boarReady=false, boarDims=null;
+
+  // mounted riders (one per player, same order as PLAYERS). yaw flips a rider that faces backward.
+  const RIDER_H=2.4;         // target rider height in world units
+  const RIDERS=[
+    {file:'tryndamere.glb', yaw:0, seat:0.05, strip:/weapon|sword|blade/i},    // drop the sword
+    {file:'gragas.glb',     yaw:0, seat:0.34, strip:/weapon|cask|keg|barrel/i}, // drop the cask
+    {file:'ashe.glb',       yaw:0, center:'bbox'},                              // keep Ashe's original centering
+    {file:'braum.glb',      yaw:0, seat:0.05, strip:/shield/i},                 // drop the shield
+  ];
+  let riderTemplates=[null,null,null,null];
+  let RIDER_SEAT_Y=0.62, RIDER_SEAT_Z=-0.05;   // where the rider sits on the boar's back
+  // UFO pilot model (replaces the procedural gnome)
+  const PILOT_H=1.9, PILOT_Y=-0.05, PILOT_YAW=Math.PI;
+
+  // ============ SOUND (original, MapleStory-style chiptune BGM + SFX) ============
+  const SND = (() => {
+    let ctx, master, musicG, sfxG, noiseBuf, muted=false, playing=false, timer=null;
+    const NF={}; const names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    for(let o=1;o<7;o++) for(let i=0;i<12;i++){ const midi=(o+1)*12+i; NF[names[i]+o]=440*Math.pow(2,(midi-69)/12); }
+
+    const tempo=126, stepDur=(60/tempo)/4;     // 16th-note grid, brisk & upbeat
+    let nextT=0, step=0;
+
+    // 4-bar loop, chords  G  D  Em  C  (cheerful I–V–vi–IV)
+    const bassRoot=['G2','D2','E2','C2'];
+    const chordTones=[['G3','B3','D4'],['D3','F#3','A3'],['E3','G3','B3'],['C3','E3','G3']];
+    const lead=[
+      'D5','-','G5','-','F#5','-','E5','-','D5','-','B4','-','D5','-','-','-',
+      'A4','-','D5','-','F#5','-','A5','-','G5','-','F#5','-','E5','-','-','-',
+      'E5','-','G5','-','B5','-','G5','-','E5','-','D5','-','B4','-','-','-',
+      'C5','-','E5','-','G5','-','E5','-','D5','-','C5','-','D5','-','E5','-'
+    ];
+
+    function tone(freq,t,dur,type,vol,a,r,dest){
+      a=a||0.005; r=r||0.08; dest=dest||musicG;
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type=type; o.frequency.value=freq;
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.linearRampToValueAtTime(vol,t+a);
+      g.gain.setValueAtTime(vol,t+Math.max(a,dur-r));
+      g.gain.linearRampToValueAtTime(0.0001,t+dur);
+      o.connect(g).connect(dest); o.start(t); o.stop(t+dur+0.02);
+    }
+    function noise(t,dur,vol,hp,dest){
+      dest=dest||musicG;
+      const s=ctx.createBufferSource(); s.buffer=noiseBuf;
+      const g=ctx.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      let node=s; if(hp){ const f=ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp; node.connect(f); node=f; }
+      node.connect(g).connect(dest); s.start(t); s.stop(t+dur);
+    }
+    function kick(t){ const o=ctx.createOscillator(),g=ctx.createGain(); o.type='sine';
+      o.frequency.setValueAtTime(135,t); o.frequency.exponentialRampToValueAtTime(45,t+0.12);
+      g.gain.setValueAtTime(0.45,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+      o.connect(g).connect(musicG); o.start(t); o.stop(t+0.2); }
+    function snare(t){ noise(t,0.13,0.22,1400); tone(190,t,0.12,'triangle',0.12,0.002,0.08); }
+    function sweep(f0,f1,dur,type,vol){ const t=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();
+      o.type=type; o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+      g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+      o.connect(g).connect(sfxG); o.start(t); o.stop(t+dur+0.02); }
+
+    function scheduleStep(s,t){
+      const bar=Math.floor(s/16), bs=s%16;
+      // bass (pizzicato-ish)
+      if(bs===0||bs===8) tone(NF[bassRoot[bar]], t, stepDur*3.2,'triangle',0.22,0.004,0.1);
+      if(bs===4||bs===12) tone(NF[bassRoot[bar]]*1.5, t, stepDur*1.8,'triangle',0.15);
+      // soft arpeggio sparkle
+      if(bs%2===0){ const ct=chordTones[bar]; tone(NF[ct[(bs/2)%3]]*2, t, stepDur*1.3,'sine',0.05,0.004,0.1); }
+      // lead melody
+      const ln=lead[s]; if(ln && ln!=='-') tone(NF[ln], t, stepDur*1.7,'square',0.12,0.004,0.09);
+      // percussion
+      if(bs===0||bs===8) kick(t);
+      if(bs===4||bs===12) snare(t);
+      noise(t,0.025, bs%2===0?0.06:0.03, 8000); // hat
+    }
+    function tick(){ while(nextT < ctx.currentTime + 0.12){ scheduleStep(step%64, nextT); nextT+=stepDur; step++; } timer=setTimeout(tick,25); }
+
+    function ensure(){
+      if(ctx) return;
+      const AC=window.AudioContext||window.webkitAudioContext; ctx=new AC();
+      master=ctx.createGain(); master.gain.value=muted?0:0.8; master.connect(ctx.destination);
+      musicG=ctx.createGain(); musicG.gain.value=0.5; musicG.connect(master);
+      sfxG=ctx.createGain(); sfxG.gain.value=0.9; sfxG.connect(master);
+      noiseBuf=ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    }
+    return {
+      start(){ ensure(); ctx.resume&&ctx.resume(); },   // unlock audio for SFX (BGM now comes from YouTube)
+      startMusic(){ ensure(); ctx.resume&&ctx.resume(); if(!playing){ playing=true; nextT=ctx.currentTime+0.08; step=0; tick(); } },
+      setMuted(m){ muted=m; if(master) master.gain.value=m?0:0.8; return muted; },
+      toggle(){ return this.setMuted(!muted); },
+      isMuted(){ return muted; },
+      sfx(name){
+        if(!ctx||muted) return; const t=ctx.currentTime;
+        if(name==='dash') sweep(260,660,0.14,'square',0.18);
+        else if(name==='hit'){ noise(t,0.08,0.28,1100,sfxG); tone(120,t,0.1,'square',0.18,0.002,0.05,sfxG); }
+        else if(name==='crack') noise(t,0.1,0.18,2500,sfxG);
+        else if(name==='break'){ noise(t,0.28,0.3,700,sfxG); tone(150,t,0.28,'sawtooth',0.12,0.002,0.2,sfxG); }
+        else if(name==='pickup'){ [NF['C5'],NF['E5'],NF['G5']].forEach((f,i)=>tone(f,t+i*0.07,0.12,'square',0.16,0.002,0.06,sfxG)); tone(NF['C6'],t+0.21,0.18,'square',0.14,0.002,0.1,sfxG); }
+        else if(name==='fall') sweep(520,110,0.42,'sawtooth',0.16);
+        else if(name==='win'){ [NF['C5'],NF['E5'],NF['G5'],NF['C6']].forEach((f,i)=>tone(f,t+i*0.12,0.45,'square',0.18,0.005,0.2,sfxG)); }
+        else if(name==='grow') sweep(200,560,0.3,'square',0.16);
+        else if(name==='shrink') sweep(560,180,0.3,'square',0.16);
+        else if(name==='thunder'){ noise(t,0.4,0.4,250,sfxG); tone(70,t,0.45,'sawtooth',0.2,0.002,0.3,sfxG); }
+        else if(name==='stasis'){ tone(NF['C5'],t,0.45,'sine',0.2,0.01,0.25,sfxG); tone(NF['G5'],t+0.05,0.45,'sine',0.15,0.01,0.25,sfxG); tone(NF['C6'],t+0.1,0.4,'sine',0.12,0.01,0.25,sfxG); }
+        else if(name==='count') tone(NF['G4'],t,0.16,'square',0.2,0.005,0.08,sfxG);
+        else if(name==='go'){ tone(NF['C5'],t,0.32,'square',0.22,0.005,0.16,sfxG); tone(NF['E5'],t,0.32,'square',0.16,0.005,0.16,sfxG); tone(NF['G5'],t,0.32,'square',0.14,0.005,0.16,sfxG); }
+      },
+      setMusicVolume(x){ if(musicG) musicG.gain.value=Math.max(0,Math.min(1,x))*0.6; }
+    };
+  })();
+
+  // ============ BACKGROUND MUSIC (official YouTube embed of the requested track) ============
+  const YT_ID='fBrVO77A_bQ';
+  let ytPlayer=null, ytReady=false, ytPendingPlay=false, uiMuted=false;
+  window.onYouTubeIframeAPIReady=function(){
+    ytPlayer=new YT.Player('ytbgm',{
+      videoId:YT_ID,
+      playerVars:{autoplay:0,controls:0,disablekb:1,fs:0,loop:1,playlist:YT_ID,modestbranding:1,playsinline:1,rel:0},
+      events:{
+        onReady:()=>{ ytReady=true; ytPlayer.setVolume(45); if(uiMuted)ytPlayer.mute();
+          if(ytPendingPlay){ try{ytPlayer.playVideo();}catch(e){} } },
+        onStateChange:e=>{ if(e.data===YT.PlayerState.ENDED){ try{ytPlayer.seekTo(0); ytPlayer.playVideo();}catch(e){} } },
+        onError:()=>{ SND.startMusic(); }   // fall back to built-in chiptune if the video can't play
+      }
+    });
+  };
+  function startBGM(){ if(ytReady){ try{ ytPlayer.playVideo(); }catch(e){} } else ytPendingPlay=true; }
+
+  // ============ THREE SETUP ============
+  const app = document.getElementById('app');
+  const renderer = new TH.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = TH.PCFSoftShadowMap;
+  app.appendChild(renderer.domElement);
+
+  const scene = new TH.Scene();
+  scene.fog = new TH.FogExp2(0x06121f, 0.012);
+
+  const camera = new TH.PerspectiveCamera(48, innerWidth/innerHeight, 0.1, 400);
+  camera.position.set(0, 13, 20); camera.lookAt(0, 0.6, 0);
+
+  scene.add(new TH.HemisphereLight(0x8fd0ff, 0x10243a, 0.85));
+  const sun = new TH.DirectionalLight(0xbfe6ff, 1.1);
+  sun.position.set(-12,22,10); sun.castShadow=true;
+  sun.shadow.mapSize.set(1024,1024);
+  sun.shadow.camera.near=1; sun.shadow.camera.far=80;
+  sun.shadow.camera.left=-20; sun.shadow.camera.right=20; sun.shadow.camera.top=20; sun.shadow.camera.bottom=-20;
+  scene.add(sun);
+  const rim = new TH.DirectionalLight(0x6affc0, 0.4); rim.position.set(8,6,-14); scene.add(rim);
+
+  // ============ AURORA (lower + greener) ============
+  const auroraMat = new TH.ShaderMaterial({
+    transparent:true, depthWrite:false, blending:TH.AdditiveBlending, side:TH.DoubleSide,
+    uniforms:{ t:{value:0} },
+    vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+    fragmentShader:`
+      uniform float t; varying vec2 vUv;
+      void main(){
+        vec2 uv=vUv; float y=uv.y; float a=0.0;
+        for(int i=0;i<4;i++){
+          float fi=float(i);
+          float w=sin(uv.x*5.0+t*0.35+fi*1.7)*0.06+sin(uv.x*11.0-t*0.22+fi*2.3)*0.035;
+          float c=0.10+fi*0.11+w;            // bands sit LOWER
+          float band=exp(-pow((y-c)*10.0,2.0));
+          float curtain=0.65+0.35*sin(uv.x*22.0+fi*3.0+t*0.5);
+          a+=band*curtain;
+        }
+        vec3 col=mix(vec3(0.10,1.0,0.42), vec3(0.18,0.85,0.55), uv.y);  // mostly green
+        col=mix(col, vec3(0.25,0.55,0.85), smoothstep(0.6,1.0,uv.y)*0.35);
+        float fade=smoothstep(0.0,0.18,uv.y)*smoothstep(0.9,0.32,uv.y);
+        gl_FragColor=vec4(col*a*1.9, a*fade);
+      }`
+  });
+  const aurora = new TH.Mesh(new TH.PlaneGeometry(300,78), auroraMat);
+  aurora.position.set(0, 8, -64);      // big curtain across the top of the sky
+  scene.add(aurora);
+
+  // (stars removed — they read as white dots over the ocean)
+
+  // ============ NIGHT SKY (gradient dome, replaces the flat black) ============
+  scene.background = new TH.Color(0x040b16);
+  const sky = new TH.Mesh(new TH.SphereGeometry(240,32,16), new TH.ShaderMaterial({
+    side:TH.BackSide, depthWrite:false, fog:false,
+    uniforms:{ top:{value:new TH.Color(0x03070f)}, bot:{value:new TH.Color(0x0b2236)} },
+    vertexShader:`varying float h; void main(){ h=normalize(position).y; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+    fragmentShader:`uniform vec3 top; uniform vec3 bot; varying float h;
+      void main(){ float k=clamp(h*0.9+0.25,0.0,1.0); gl_FragColor=vec4(mix(bot,top,k),1.0);} `
+  }));
+  scene.add(sky);
+
+  // ============ DARK OCEAN (animated water; fades to the aurora sky at the horizon) ============
+  const waterMat = new TH.ShaderMaterial({
+    transparent:true, depthWrite:false,
+    uniforms:{ t:{value:0} },
+    vertexShader:`
+      uniform float t; varying float vW; varying float vD; varying vec3 vWp;
+      void main(){
+        vec3 p=position;
+        float w = sin(p.x*0.05 + t*0.9)*0.34
+                + sin(p.y*0.07 - t*0.7)*0.26
+                + sin((p.x+p.y)*0.045 + t*0.55)*0.20
+                + sin((p.x-p.y)*0.09 - t*1.1)*0.10;
+        p.z += w; vW=w;
+        vec4 wp=modelMatrix*vec4(p,1.0); vWp=wp.xyz;
+        vD=length(wp.xyz - cameraPosition);
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);
+      }`,
+    fragmentShader:`
+      uniform float t; varying float vW; varying float vD; varying vec3 vWp;
+      void main(){
+        vec2 q=vWp.xz;
+        // layered drifting ripples -> mottled patches that flow across the surface
+        float n = 0.6*sin(q.x*0.10 + t*0.5)*sin(q.y*0.09 - t*0.4)
+                + 0.5*sin(q.x*0.27 - t*0.8)*sin(q.y*0.23 + t*0.6)
+                + 0.4*sin((q.x+q.y)*0.18 + t*1.0)
+                + 0.3*sin((q.x-q.y)*0.41 - t*1.3);
+        n*=0.55;
+        vec3 deep =vec3(0.006,0.03,0.06);
+        vec3 crest=vec3(0.06,0.19,0.27);
+        float c=clamp(vW*0.55 + n*0.5 + 0.5, 0.0, 1.0);
+        vec3 col=mix(deep,crest,c);
+        // dark drifting spots where the flow dips low
+        col *= mix(1.0, 0.4, smoothstep(0.25, -0.35, n));
+        // faint bright ripple crests
+        col += vec3(0.05,0.10,0.13) * smoothstep(0.55, 0.95, n);
+        // fade water to transparent past the iceberg so the aurora sky shows above the horizon
+        float a=1.0 - smoothstep(30.0, 54.0, vD);
+        gl_FragColor=vec4(col, a);
+      }`
+  });
+  const ocean = new TH.Mesh(new TH.PlaneGeometry(800,800,150,150), waterMat);
+  ocean.rotation.x=-Math.PI/2; ocean.position.y=-2.4; scene.add(ocean);
+
+  // ============ ARENA (solid floor; only the EDGE breaks) ============
+  // 3D iceberg: a chunky faceted ice mass — clean rim on top, jagged ice facets dropping into the dark sea
+  const iceMat     = new TH.MeshStandardMaterial({vertexColors:true, roughness:0.62, metalness:0.04, flatShading:true});
+  const iceDeepMat = new TH.MeshStandardMaterial({color:0x223f57, roughness:0.7, metalness:0.04, flatShading:true});
+  // distort a cylinder/cone into faceted "ice chunks": clean at the top, increasingly jagged toward the bottom,
+  // with an optional top(light)->bottom(dark) vertex gradient like the reference
+  function shapeIce(geo, H, color){
+    const pos=geo.attributes.position, cols=color?[]:null;
+    const cTop=new TH.Color(0xeef5fb), cBot=new TH.Color(0x2a4f6b);
+    for(let i=0;i<pos.count;i++){
+      const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i), r=Math.hypot(x,z);
+      const vt=Math.min(1,Math.max(0,(H/2 - y)/H));          // 0 at top .. 1 at bottom
+      if(r>0.001){
+        const a=Math.atan2(z,x);
+        const f=Math.sin(a*7.0)*0.5 + Math.sin(a*13.0+1.3)*0.3 + Math.sin(a*23.0+0.7)*0.2;
+        const k=1 + f*0.14*vt;                                // chunky sides grow toward the base, rim stays round
+        pos.setX(i,Math.cos(a)*r*k);
+        pos.setZ(i,Math.sin(a)*r*k);
+        pos.setY(i, y + Math.sin(a*9.0+1.1)*vt*0.9);          // jagged underside
+      }
+      if(color){ const c=cTop.clone().lerp(cBot,vt); cols.push(c.r,c.g,c.b); }
+    }
+    if(color) geo.setAttribute('color',new TH.Float32BufferAttribute(cols,3));
+    pos.needsUpdate=true; geo.computeVertexNormals();
+  }
+  const berg = new TH.Group();
+  // chunky ice cliff (the 3D body that shows above the water)
+  const cliffGeo=new TH.CylinderGeometry(R_OUT, R_OUT*0.8, 4.6, 28, 5);
+  shapeIce(cliffGeo, 4.6, true);
+  const cliff=new TH.Mesh(cliffGeo, iceMat);
+  cliff.position.y=-2.3; cliff.castShadow=true; cliff.receiveShadow=true; berg.add(cliff);
+  // underwater keel — the big ice mass tapering down into the deep
+  const keelGeo=new TH.ConeGeometry(R_OUT*0.8, 13, 13, 4);
+  shapeIce(keelGeo, 13, false);
+  const keel=new TH.Mesh(keelGeo, iceDeepMat);
+  keel.rotation.x=Math.PI; keel.position.y=-4.6-6.5+0.2; keel.receiveShadow=true; berg.add(keel);
+  scene.add(berg);
+  const floorMesh = berg;   // alias kept for any later references
+  // icy pond: deep blue center fading to lighter cyan toward the rim (vertex-color gradient)
+  const ftGeo=new TH.CircleGeometry(R_OUT,72);
+  (function(){ const pos=ftGeo.attributes.position, cols=[],
+      deep=new TH.Color(0x2e74b0), lite=new TH.Color(0xa8d6ea);
+    for(let i=0;i<pos.count;i++){ const t=Math.min(1,Math.hypot(pos.getX(i),pos.getY(i))/R_OUT);
+      const c=deep.clone().lerp(lite,t*0.9); cols.push(c.r,c.g,c.b); }
+    ftGeo.setAttribute('color',new TH.Float32BufferAttribute(cols,3)); })();
+  const floorTop = new TH.Mesh(ftGeo,
+    new TH.MeshStandardMaterial({vertexColors:true, roughness:0.28, metalness:0.25}));
+  floorTop.rotation.x=-Math.PI/2; floorTop.position.y=0.01; floorTop.receiveShadow=true; scene.add(floorTop);
+
+  // breakable EDGE segments (raised ice lip + rocks). The floor underneath always stays solid.
+  const rockColors=[0xffffff,0xeaf0f5];
+  const segs=[];
+  for(let i=0;i<NSEG;i++){
+    const g=new TH.Group();
+    const lipMat=new TH.MeshStandardMaterial({color:0xf6fbff, roughness:0.4});
+    const lip=new TH.Mesh(new TH.RingGeometry(R_OUT-0.7, R_OUT, 5,1, i*STEP, STEP), lipMat);
+    lip.rotation.x=-Math.PI/2; lip.position.y=0.2; lip.receiveShadow=true; g.add(lip);
+    const mid=-(i+0.5)*STEP;
+    const rocks=[];
+    for(let k=0;k<2;k++){
+      const h=1.4+Math.random()*1.5;
+      const rk=new TH.Mesh(new TH.ConeGeometry(0.7+Math.random()*0.4,h,5+Math.floor(Math.random()*3)),
+        new TH.MeshStandardMaterial({color:rockColors[k%2], roughness:0.95, flatShading:true}));
+      const aa=mid+(k-0.5)*STEP*0.5, rr=R_OUT-0.1;
+      rk.position.set(Math.cos(aa)*rr, h*0.5, Math.sin(aa)*rr);
+      rk.rotation.set((Math.random()-0.5)*0.4, Math.random()*6.28,(Math.random()-0.5)*0.4);
+      rk.castShadow=true; g.add(rk); rocks.push(rk);
+    }
+    scene.add(g);
+    segs.push({g, lipMat, rocks, state:0, cool:0});
+  }
+  function segIndex(x,z){ let p=-Math.atan2(z,x); p=((p%(Math.PI*2))+Math.PI*2)%(Math.PI*2); return Math.floor(p/STEP)%NSEG; }
+  function damageSeg(i,px,pz){
+    const s=segs[i]; if(!s||s.state>=2||s.cool>0) return; s.cool=0.6;
+    if(s.state===0){ s.state=1; s.lipMat.color.set(0x9fb0bf); s.lipMat.emissive=new TH.Color(0x16242f);
+      s.rocks.forEach(r=>r.material.color.set(0x7f8c99));
+      burst(px,0.5,pz,sparkMat,8,3,2); SND.sfx('crack'); }
+    else { s.state=2; s.g.visible=false; burst(px,0.7,pz,splashMat,22,5,3.8); SND.sfx('break'); }
+  }
+  function edgeBroken(x,z){ return segs[segIndex(x,z)].state===2; }
+
+  // ============ UFO POWERUP DROPPER ============
+  const ufo = new TH.Group();
+  const metalLite=new TH.MeshStandardMaterial({color:0x9aa6b3, roughness:0.3, metalness:0.85, side:TH.DoubleSide});
+  const metalDark=new TH.MeshStandardMaterial({color:0x586470, roughness:0.5, metalness:0.7, side:TH.DoubleSide});
+  // saucer top cap — covers the bottom half, with a central cockpit hole
+  const topCap=new TH.Mesh(new TH.SphereGeometry(1.7,40,22, 0,6.28, 0.58, Math.PI/2-0.58), metalLite);
+  topCap.scale.set(1,0.27,1); topCap.position.y=0.05; ufo.add(topCap);
+  // saucer bottom cap (closes the underside)
+  const botCap=new TH.Mesh(new TH.SphereGeometry(1.7,40,22, 0,6.28, Math.PI/2, Math.PI/2), metalDark);
+  botCap.scale.set(1,0.27,1); botCap.position.y=0.05; ufo.add(botCap);
+  // rim edge seam
+  const saucerRim=new TH.Mesh(new TH.TorusGeometry(1.68,0.16,12,44), metalLite);
+  saucerRim.rotation.x=Math.PI/2; saucerRim.scale.y=0.5; saucerRim.position.y=0.05; ufo.add(saucerRim);
+  // cockpit floor the pilot stands on
+  const floor=new TH.Mesh(new TH.CircleGeometry(0.85,28), metalDark);
+  floor.rotation.x=-Math.PI/2; floor.position.y=-0.08; ufo.add(floor);
+  const emitter=new TH.Mesh(new TH.SphereGeometry(0.3,14,10), new TH.MeshBasicMaterial({color:0x8dffa0}));
+  emitter.position.y=-0.78; ufo.add(emitter);
+  // glass cockpit bubble over the hole (transparent)
+  const dome=new TH.Mesh(new TH.SphereGeometry(1.0,32,22, 0,6.28, 0, Math.PI*0.62),
+    new TH.MeshStandardMaterial({color:0x9fe9ff, roughness:0.06, metalness:0.1, transparent:true, opacity:0.3, emissive:0x0e3a44, side:TH.DoubleSide}));
+  dome.position.y=0.28; ufo.add(dome);
+  // gnome pilot (placeholder; replaced by pilot.glb when it loads)
+  let ufoGnome=null, ufoPilot=null;
+  (function buildGnome(){
+    const g=new TH.Group();
+    const green=new TH.MeshStandardMaterial({color:0xa9bd80, roughness:0.85});
+    const skin=new TH.MeshStandardMaterial({color:0xd6a07a, roughness:0.85});
+    const body=new TH.Mesh(new TH.ConeGeometry(0.34,0.62,12),green); body.position.y=0.31; g.add(body);
+    const head=new TH.Mesh(new TH.SphereGeometry(0.24,16,14),skin); head.position.y=0.67; head.scale.set(1,1.05,0.95); g.add(head);
+    // pointy ears
+    for(const sx of [-1,1]){ const ear=new TH.Mesh(new TH.ConeGeometry(0.09,0.3,5),skin);
+      ear.position.set(sx*0.24,0.7,-0.02); ear.rotation.z=sx*0.9; ear.rotation.x=-0.3; g.add(ear); }
+    // pointed nose
+    const nose=new TH.Mesh(new TH.ConeGeometry(0.06,0.2,7),skin);
+    nose.position.set(0,0.64,0.21); nose.rotation.x=Math.PI*0.62; g.add(nose);
+    // eyes — white with dark pupils looking toward the middle
+    for(const sx of [-1,1]){
+      const w=new TH.Mesh(new TH.SphereGeometry(0.06,10,9),new TH.MeshStandardMaterial({color:0xffffff,roughness:0.4}));
+      w.position.set(sx*0.1,0.72,0.18); w.scale.set(1,1.2,0.7); g.add(w);
+      const p=new TH.Mesh(new TH.SphereGeometry(0.028,8,8),new TH.MeshBasicMaterial({color:0x111111}));
+      p.position.set(sx*0.07,0.72,0.225); g.add(p);
+    }
+    // small mouth
+    const mouth=new TH.Mesh(new TH.BoxGeometry(0.12,0.028,0.02),new TH.MeshStandardMaterial({color:0x7a2d1c,roughness:0.7}));
+    mouth.position.set(0,0.56,0.215); g.add(mouth);
+    // tall pointy hat
+    const hat=new TH.Mesh(new TH.ConeGeometry(0.26,0.72,14),green); hat.position.y=1.06; g.add(hat);
+    g.position.y=0.36; g.scale.setScalar(0.8); g.traverse(o=>{ if(o.isMesh)o.castShadow=false; });
+    ufoGnome=g; ufo.add(g);
+  })();
+  // swap the gnome for the loaded pilot model
+  function mountPilot(gltf){
+    const root=gltf.scene;
+    root.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; o.castShadow=false; } });
+    root.updateMatrixWorld(true);
+    const box=new TH.Box3(); let any=false;
+    root.traverse(o=>{ if(o.isSkinnedMesh){ box.union(new TH.Box3().setFromObject(o)); any=true; } });
+    if(!any) box.setFromObject(root);
+    const size=new TH.Vector3(); box.getSize(size);
+    const center=new TH.Vector3(); box.getCenter(center);
+    const s=PILOT_H/Math.max(size.y,0.001);
+    const inner=new TH.Group();
+    root.position.set(-center.x, -box.min.y, -center.z);
+    inner.add(root); inner.scale.setScalar(s); inner.rotation.y=PILOT_YAW; inner.position.y=PILOT_Y;
+    if(ufoGnome){ ufo.remove(ufoGnome); ufoGnome=null; }
+    ufoPilot=inner; ufo.add(inner);
+  }
+  const ufoLights=[];
+  for(let i=0;i<8;i++){ const a=i/8*6.28;
+    const L=new TH.Mesh(new TH.SphereGeometry(0.17,8,8), new TH.MeshBasicMaterial({color:0x6dff7a}));
+    L.position.set(Math.cos(a)*1.55,-0.06,Math.sin(a)*1.55); ufo.add(L); ufoLights.push(L); }
+  ufo.position.set(0,8,0); scene.add(ufo);
+
+  // green tractor cone + ground glow (tip at UFO, widening to the floor)
+  const coneMat=new TH.MeshBasicMaterial({color:0x55ff7a, transparent:true, opacity:0.15,
+    side:TH.DoubleSide, blending:TH.AdditiveBlending, depthWrite:false});
+  const cone=new TH.Mesh(new TH.ConeGeometry(1,1,30,1,true), coneMat); scene.add(cone);
+  const ufoGlow=new TH.Mesh(new TH.CircleGeometry(1,30),
+    new TH.MeshBasicMaterial({color:0x55ff7a, transparent:true, opacity:0.3, blending:TH.AdditiveBlending, depthWrite:false}));
+  ufoGlow.rotation.x=-Math.PI/2; ufoGlow.position.y=0.06; scene.add(ufoGlow);
+
+  const CONE_R=2.6, EMIT_GREEN=new TH.Color(0x8dffa0);
+  function updateUFO(dt){
+    const e=elapsed;
+    ufo.position.x=Math.cos(e*0.45)*5.5 + Math.sin(e*0.27)*2.0;
+    ufo.position.z=Math.sin(e*0.45)*5.5 + Math.cos(e*0.33)*2.0;
+    ufo.position.y=8 + Math.sin(e*1.1)*0.4;
+    ufo.rotation.y += dt*0.6;
+    ufoLights.forEach((L,i)=>L.material.color.setHex(Math.sin(e*6+i*0.8)>0?0x9dffa6:0x1c6b27));
+    emitter.material.color.lerp(EMIT_GREEN, dt*4);   // fade emitter flash back to green
+    const hy=ufo.position.y, pulse=1+Math.sin(e*4)*0.05;
+    cone.position.set(ufo.position.x, hy/2, ufo.position.z);
+    cone.scale.set(CONE_R*pulse, hy, CONE_R*pulse);
+    coneMat.opacity=0.13+Math.sin(e*4)*0.04;
+    ufoGlow.position.set(ufo.position.x,0.06,ufo.position.z);
+    ufoGlow.scale.set(CONE_R*pulse,CONE_R*pulse,1);
+    ufoGlow.material.opacity=0.26+Math.sin(e*4)*0.08;
+  }
+
+  const PUPS = [
+    {type:'live',   col:0xfff14a, emoji:'⚡'},  // hot-potato bolt: countdown then zap everyone else
+    {type:'glass',  col:0xffd24a, emoji:'⏳'},  // hourglass: press Shift for 2s golden stasis
+    {type:'tornado',col:0x9fd6ec, emoji:'🌪️'}, // hold then press Shift to fire a tornado that pops up rivals
+    {type:'anvil',  col:0x6b7078, emoji:'⚒️'}, // hot-potato: 10s later a giant anvil crushes whoever holds it
+  ];
+  const STASIS_T=2;
+  const pups=[]; let dropT=4;
+  // tornado: travels forward ~half the arena, one boar wide, knocking up anyone it touches
+  const TORN_SPEED=13, TORN_RANGE=R_OUT, TORN_R=BR, KNOCK_T=1;
+  const tornadoes=[];
+  function makeTornado(){                     // translucent funnel + glowing swirl rings
+    const g=new TH.Group();
+    const body=new TH.Mesh(new TH.CylinderGeometry(0.5,0.12,1.5,14,3,true),
+      new TH.MeshStandardMaterial({color:0xcfe6f4, transparent:true, opacity:0.5, roughness:0.6,
+        side:TH.DoubleSide, emissive:0x2a4a63, emissiveIntensity:0.4}));
+    body.position.y=0.75; g.add(body);
+    for(let i=0;i<3;i++){ const ring=new TH.Mesh(new TH.TorusGeometry(0.16+i*0.17,0.05,6,18),
+        new TH.MeshBasicMaterial({color:0xe6f6ff, transparent:true, opacity:0.55, blending:TH.AdditiveBlending, depthWrite:false}));
+      ring.rotation.x=Math.PI/2; ring.position.y=0.2+i*0.52; g.add(ring); }
+    return g;
+  }
+  const pupByType=t=>PUPS.find(p=>p.type===t)||PUPS[0];
+  function pupCore(def){
+    if(def.type==='live'){ const b=makeBoltMesh(def.col); b.scale.setScalar(1.15); return b; }
+    if(def.type==='glass') return makeHourglass();
+    if(def.type==='tornado'){ const tn=makeTornado(); tn.scale.setScalar(0.7); return tn; }
+    if(def.type==='anvil'){ const av=makeAnvil(); av.scale.setScalar(0.42); av.position.y=-0.1; return av; }
+    return new TH.Mesh(new TH.IcosahedronGeometry(0.45,0),
+      new TH.MeshStandardMaterial({color:def.col, emissive:def.col, emissiveIntensity:0.6, roughness:0.3}));
+  }
+  function makePupVisual(def){                 // group used by both host pickups and client renders
+    const m=new TH.Group(); m.add(pupCore(def));
+    const ring=new TH.Mesh(new TH.TorusGeometry(0.7,0.05,6,20),
+      new TH.MeshBasicMaterial({color:def.col,transparent:true,opacity:0.8,blending:TH.AdditiveBlending}));
+    ring.rotation.x=Math.PI/2; m.add(ring); return m;
+  }
+  let pupId=0;
+  function spawnPickup(){
+    let pool=PUPS;                              // only one live bolt / one anvil on the field at a time
+    if(boltHolder)  pool=pool.filter(p=>p.type!=='live');
+    if(anvilHolder) pool=pool.filter(p=>p.type!=='anvil');
+    if(!pool.length) return;
+    const def=pool[Math.floor(Math.random()*pool.length)];
+    const m=makePupVisual(def);
+    const px=ufo.position.x, pz=ufo.position.z;
+    m.position.set(px, ufo.position.y-0.6, pz); scene.add(m);
+    pups.push({m, def, id:++pupId, x:px, z:pz, vy:0, landed:false, spin:Math.random()*6});
+    emitter.material.color.setHex(0xffffff);   // flash the emitter on drop
+  }
+  function applyPickup(b,type){
+    if(type==='live'){ giveBolt(b); }
+    else if(type==='glass'){ b.hasGlass=true; burst(b.x,1.4,b.z,sparkMat,12,2,2); }
+    else if(type==='tornado'){ b.hasTornado=true; burst(b.x,1.4,b.z,sparkMat,12,3,3); }
+    else if(type==='anvil'){ giveAnvil(b); }
+    SND.sfx('pickup');
+  }
+  // fire a tornado forward; it pops up anyone it catches, then fizzles after half the arena
+  function launchTornado(b){
+    b.hasTornado=false;
+    const hx=Math.sin(b.heading), hz=Math.cos(b.heading);
+    const m=makeTornado(); m.scale.setScalar(2*TORN_R);
+    const sx=b.x+hx*1.4, sz=b.z+hz*1.4;
+    m.position.set(sx,0,sz); scene.add(m);
+    tornadoes.push({m, x:sx, z:sz, dx:hx, dz:hz, dist:0, src:b, hit:[]});
+    SND.sfx('dash');
+  }
+  function knockUp(o){ if(o.knockT>0) return; o.knockT=KNOCK_T; o.vx*=0.2; o.vz*=0.2; burst(o.x,1.4,o.z,sparkMat,14,4,5); SND.sfx('hit'); }
+
+  // ===== lightning strike: stuns every other bear caught in the light =====
+  const fx=[];
+  function strikeLightning(x,z,src){
+    const bolt=new TH.Mesh(new TH.CylinderGeometry(0.06,0.24,12,6,1,true),
+      new TH.MeshBasicMaterial({color:0xeaffff,transparent:true,opacity:1,blending:TH.AdditiveBlending,depthWrite:false}));
+    bolt.position.set(x,6,z);
+    const flash=new TH.Mesh(new TH.SphereGeometry(1.5,12,12),
+      new TH.MeshBasicMaterial({color:0xd5f3ff,transparent:true,opacity:0.9,blending:TH.AdditiveBlending,depthWrite:false}));
+    flash.position.set(x,1.3,z);
+    const ringL=new TH.Mesh(new TH.RingGeometry(0.1,STUN_R,36),
+      new TH.MeshBasicMaterial({color:0x9fe6ff,transparent:true,opacity:0.55,side:TH.DoubleSide,blending:TH.AdditiveBlending,depthWrite:false}));
+    ringL.rotation.x=-Math.PI/2; ringL.position.set(x,0.12,z);
+    const objs=[bolt,flash,ringL]; objs.forEach(o=>scene.add(o));
+    fx.push({objs, base:objs.map(o=>o.material.opacity), life:0.45, max:0.45});
+    burst(x,1,z,sparkMat,22,7,5);
+    SND.sfx('thunder');
+    for(const o of bears){ if(o!==src && o.alive && !o.falling && Math.hypot(o.x-x,o.z-z)<STUN_R){ o.stunT=STUN_T; o.vx*=0.3; o.vz*=0.3; } }
+  }
+
+  // ===== "live wire" hot-potato bolt: countdown over the holder, steal by hitting them =====
+  function makeHourglass(){
+    const g=new TH.Group();
+    const glass=new TH.MeshStandardMaterial({color:0xfff0b0, emissive:0xffc23a, emissiveIntensity:0.5, roughness:0.2, transparent:true, opacity:0.85});
+    const wood=new TH.MeshStandardMaterial({color:0x8a5a2b, roughness:0.7});
+    const top=new TH.Mesh(new TH.ConeGeometry(0.3,0.4,16),glass); top.rotation.x=Math.PI; top.position.y=0.22; g.add(top);
+    const bot=new TH.Mesh(new TH.ConeGeometry(0.3,0.4,16),glass); bot.position.y=-0.22; g.add(bot);
+    const capT=new TH.Mesh(new TH.CylinderGeometry(0.34,0.34,0.08,16),wood); capT.position.y=0.44; g.add(capT);
+    const capB=new TH.Mesh(new TH.CylinderGeometry(0.34,0.34,0.08,16),wood); capB.position.y=-0.44; g.add(capB);
+    for(let i=0;i<3;i++){ const a=i/3*6.28; const post=new TH.Mesh(new TH.CylinderGeometry(0.03,0.03,0.92,6),wood);
+      post.position.set(Math.cos(a)*0.31,0,Math.sin(a)*0.31); g.add(post); }
+    return g;
+  }
+  // golden stasis: tint the whole rig gold, restore on exit
+  // small reflection environment so metal actually looks shiny
+  function makeGoldEnv(){
+    const s=64, faces=[];
+    for(let i=0;i<6;i++){
+      const cv=document.createElement('canvas'); cv.width=cv.height=s; const cx=cv.getContext('2d');
+      const g=cx.createLinearGradient(0,0,0,s);
+      g.addColorStop(0,'#ffffff'); g.addColorStop(0.48,'#cfe6ff'); g.addColorStop(0.52,'#46729c'); g.addColorStop(1,'#0c1d31');
+      cx.fillStyle=g; cx.fillRect(0,0,s,s);
+      cx.fillStyle='rgba(255,255,255,0.95)'; cx.beginPath(); cx.arc(s*(0.25+0.1*i),s*0.22,s*0.11,0,7); cx.fill();
+      faces.push(cv);
+    }
+    const t=new TH.CubeTexture(faces); t.needsUpdate=true; return t;
+  }
+  const GOLD_ENV=makeGoldEnv(), GOLD=0xffcf33;
+  // shared solid metallic-gold materials (skinned + static variants)
+  const goldMetalSkinned=new TH.MeshStandardMaterial({color:GOLD, metalness:1.0, roughness:0.14, envMap:GOLD_ENV, envMapIntensity:1.9, emissive:0x2a1d00, skinning:true});
+  const goldMetal=new TH.MeshStandardMaterial({color:GOLD, metalness:1.0, roughness:0.14, envMap:GOLD_ENV, envMapIntensity:1.9, emissive:0x2a1d00});
+  // swap every material for solid metallic gold during stasis, restore on exit
+  function setGolden(group,on){
+    group.traverse(o=>{ if(!o.isMesh) return; const u=o.userData;
+      if(on){ if(u._mat) return; u._mat=o.material; o.material = o.isSkinnedMesh ? goldMetalSkinned : goldMetal; }
+      else { if(u._mat){ o.material=u._mat; u._mat=null; } }
+    });
+  }
+  function enterStasis(b){
+    b.stasisT=STASIS_T; b.hasGlass=false; b.vx=0; b.vz=0;
+    setGolden(b.group,true);
+    SND.sfx('stasis');
+  }
+  function makeBoltMesh(col){
+    const g=new TH.Group();
+    const mat=new TH.MeshStandardMaterial({color:col, emissive:col, emissiveIntensity:1.0, roughness:0.3});
+    const a=new TH.Mesh(new TH.BoxGeometry(0.16,0.36,0.08),mat); a.position.set(0.07,0.30,0); a.rotation.z=0.6; g.add(a);
+    const b=new TH.Mesh(new TH.BoxGeometry(0.16,0.36,0.08),mat); b.position.set(-0.07,0.0,0); b.rotation.z=-0.6; g.add(b);
+    const c=new TH.Mesh(new TH.BoxGeometry(0.16,0.36,0.08),mat); c.position.set(0.03,-0.30,0); c.rotation.z=0.6; g.add(c);
+    return g;
+  }
+  const LIVE_TIME=6;
+  let boltHolder=null, boltTimer=0, boltGrace=0;
+  const liveBolt=makeBoltMesh(0xfff14a); liveBolt.scale.setScalar(1.3); liveBolt.visible=false; scene.add(liveBolt);
+  function giveBolt(b){ boltHolder=b; boltTimer=LIVE_TIME; boltGrace=0.7; liveBolt.visible=true; SND.sfx('grow'); }
+  function boltFlash(x,z){
+    const bolt=new TH.Mesh(new TH.CylinderGeometry(0.05,0.18,12,6,1,true),
+      new TH.MeshBasicMaterial({color:0xfff7c0,transparent:true,opacity:1,blending:TH.AdditiveBlending,depthWrite:false}));
+    bolt.position.set(x,6,z);
+    const fl=new TH.Mesh(new TH.SphereGeometry(0.9,10,10),
+      new TH.MeshBasicMaterial({color:0xfff7c0,transparent:true,opacity:0.9,blending:TH.AdditiveBlending,depthWrite:false}));
+    fl.position.set(x,1,z);
+    const objs=[bolt,fl]; objs.forEach(o=>scene.add(o));
+    fx.push({objs, base:objs.map(o=>o.material.opacity), life:0.4, max:0.4});
+    burst(x,1,z,sparkMat,12,5,4);
+  }
+  function detonateBolt(){
+    const holder=boltHolder; boltHolder=null; liveBolt.visible=false;
+    for(const o of bears){ if(o!==holder && o.alive && !o.falling && o.stasisT<=0){ o.stunT=STUN_T+0.6; boltFlash(o.x,o.z); } }
+    if(holder) burst(holder.x,1.6,holder.z,sparkMat,18,5,4);
+    SND.sfx('thunder');
+  }
+  const boltCdEl=document.getElementById('boltCd');
+  function updateBoltCd(){
+    if(boltHolder && state==='playing'){
+      const v=new TH.Vector3(boltHolder.x,3.1,boltHolder.z); v.project(camera);
+      if(v.z<1){ boltCdEl.style.display='block';
+        boltCdEl.style.left=((v.x*0.5+0.5)*innerWidth)+'px';
+        boltCdEl.style.top=((-v.y*0.5+0.5)*innerHeight)+'px';
+        boltCdEl.textContent='⚡'+Math.max(0,Math.ceil(boltTimer)); }
+      else boltCdEl.style.display='none';
+    } else boltCdEl.style.display='none';
+  }
+
+  // ===== "anvil" hot-potato: 10s countdown, transfer by hitting, then a giant anvil crushes the holder =====
+  function makeAnvil(){
+    const g=new TH.Group();
+    const mat=new TH.MeshStandardMaterial({color:0x2f343c, roughness:0.45, metalness:0.65});
+    const top =new TH.Mesh(new TH.BoxGeometry(1.3,0.32,0.66), mat); top.position.y=0.52; g.add(top);
+    const horn=new TH.Mesh(new TH.ConeGeometry(0.2,0.55,4), mat); horn.rotation.z=-Math.PI/2; horn.position.set(0.92,0.52,0); g.add(horn);
+    const step=new TH.Mesh(new TH.BoxGeometry(0.9,0.16,0.66), mat); step.position.y=0.33; g.add(step);
+    const waist=new TH.Mesh(new TH.BoxGeometry(0.42,0.34,0.46), mat); waist.position.y=0.12; g.add(waist);
+    const base=new TH.Mesh(new TH.BoxGeometry(1.0,0.22,0.7), mat); base.position.y=-0.1; g.add(base);
+    return g;
+  }
+  const ANVIL_TIME=10;
+  let anvilHolder=null, anvilTimer=0, anvilGrace=0;
+  const liveAnvil=makeAnvil(); liveAnvil.scale.setScalar(0.5); liveAnvil.visible=false; scene.add(liveAnvil);
+  const crushers=[];   // giant anvils currently falling on a doomed holder
+  function giveAnvil(b){ anvilHolder=b; anvilTimer=ANVIL_TIME; anvilGrace=0.7; liveAnvil.visible=true; SND.sfx('hit'); }
+  function dropAnvil(victim){
+    if(victim) victim.stunT=Math.max(victim.stunT,1.5);   // frozen as the anvil plummets
+    const big=makeAnvil(); big.scale.setScalar(1.9);
+    big.position.set(victim?victim.x:0, 16, victim?victim.z:0); scene.add(big);
+    crushers.push({m:big, victim, vy:0, landed:false, rest:0});
+    SND.sfx('fall');
+  }
+  function detonateAnvil(){
+    const victim=anvilHolder; anvilHolder=null; liveAnvil.visible=false;
+    dropAnvil(victim);
+  }
+  const anvilCdEl=document.getElementById('anvilCd');
+  function updateAnvilCd(){
+    if(anvilHolder && state==='playing'){
+      const v=new TH.Vector3(anvilHolder.x,3.8,anvilHolder.z); v.project(camera);
+      if(v.z<1){ anvilCdEl.style.display='block';
+        anvilCdEl.style.left=((v.x*0.5+0.5)*innerWidth)+'px';
+        anvilCdEl.style.top=((-v.y*0.5+0.5)*innerHeight)+'px';
+        anvilCdEl.textContent='⚒'+Math.max(0,Math.ceil(anvilTimer)); }
+      else anvilCdEl.style.display='none';
+    } else anvilCdEl.style.display='none';
+  }
+
+  // ============ BEARS ============
+  // ===== Boar model from poro_rider_sejuani.glb — keep the boar, drop the human rider =====
+  const isBoarBone = name => /_Ride$/i.test(name) || /armor/i.test(name) || /^Tongue[1-4]$/.test(name);
+  function stripHuman(skinned){
+    const geo=skinned.geometry, bones=skinned.skeleton.bones;
+    const si=geo.attributes.skinIndex, sw=geo.attributes.skinWeight, idx=geo.index;
+    if(!si||!sw||!idx) return;
+    const n=geo.attributes.position.count, bw=new Float32Array(n);
+    for(let v=0;v<n;v++){
+      const ix=[si.getX(v),si.getY(v),si.getZ(v),si.getW(v)];
+      const wt=[sw.getX(v),sw.getY(v),sw.getZ(v),sw.getW(v)];
+      let boar=0,tot=0;
+      for(let k=0;k<4;k++){ const w=wt[k]; if(w<=0)continue; tot+=w; const b=bones[ix[k]]; if(b&&isBoarBone(b.name))boar+=w; }
+      bw[v]= tot>0? boar/tot : 0;
+    }
+    const keep=[];
+    for(let t=0;t<idx.count;t+=3){ const a=idx.getX(t),b=idx.getX(t+1),c=idx.getX(t+2);
+      if(bw[a]+bw[b]+bw[c] >= 1.5) keep.push(a,b,c); }
+    const ratio=keep.length/idx.count;
+    if(ratio>0.02 && ratio<0.98) geo.setIndex(new TH.Uint32BufferAttribute(keep,1));
+  }
+  function buildBoarTemplate(gltf){
+    const root=gltf.scene; let skinned=null;
+    root.traverse(o=>{ if(o.isSkinnedMesh && !skinned) skinned=o; });
+    if(skinned) stripHuman(skinned);
+    root.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; o.castShadow=true; } });
+    root.updateMatrixWorld(true);
+    // measure only the kept (boar) geometry
+    const box=new TH.Box3(), tmp=new TH.Vector3();
+    if(skinned){ const pos=skinned.geometry.attributes.position, idx=skinned.geometry.index;
+      for(let t=0;t<idx.count;t++){ tmp.fromBufferAttribute(pos,idx.getX(t)).applyMatrix4(skinned.matrixWorld); box.expandByPoint(tmp);} }
+    else box.setFromObject(root);
+    const size=new TH.Vector3(); box.getSize(size); const center=new TH.Vector3(); box.getCenter(center);
+    const s=2.6/Math.max(size.x,size.z,0.001);
+    const inner=new TH.Group();
+    root.position.sub(center);          // center the boar at the origin
+    inner.add(root);
+    inner.scale.setScalar(s);
+    inner.rotation.y=BOAR_YAW;
+    inner.position.y=(size.y/2)*s;       // feet on the ice
+    boarTemplate=inner;
+    // figure out where to place glowing eyes (use the boar head bone if present)
+    inner.updateMatrixWorld(true);
+    let headBone=null; root.traverse(o=>{ if(o.name==='Head_Ride') headBone=o; });
+    const fb=new TH.Box3(), tp=new TH.Vector3();
+    if(skinned){ const pos=skinned.geometry.attributes.position, idx=skinned.geometry.index;
+      for(let t=0;t<idx.count;t++){ tp.fromBufferAttribute(pos,idx.getX(t)).applyMatrix4(skinned.matrixWorld); fb.expandByPoint(tp);} }
+    const span=Math.max(fb.max.x,-fb.min.x,0.4);
+    let hp=null; if(headBone){ hp=new TH.Vector3(); headBone.getWorldPosition(hp); }
+    const eyeR=span*0.16;
+    boarDims={
+      eyeX: span*0.30,
+      eyeY: hp? hp.y+eyeR*0.4 : fb.max.y*0.78,
+      eyeZ: hp? (hp.z*0.4 + fb.max.z*0.6) : fb.max.z*0.82,
+      eyeR,
+      top: isFinite(fb.max.y)? fb.max.y : 1.5   // boar height, used to seat the rider
+    };
+  }
+  // drop the triangles weighted to bones matching `re` (e.g. a held shield / cask)
+  function stripBones(skinned, re){
+    const geo=skinned.geometry, bones=skinned.skeleton.bones;
+    const si=geo.attributes.skinIndex, sw=geo.attributes.skinWeight, idx=geo.index;
+    if(!si||!sw||!idx) return;
+    const n=geo.attributes.position.count, rm=new Float32Array(n);
+    for(let v=0;v<n;v++){
+      const ix=[si.getX(v),si.getY(v),si.getZ(v),si.getW(v)];
+      const wt=[sw.getX(v),sw.getY(v),sw.getZ(v),sw.getW(v)];
+      let r=0,tot=0;
+      for(let k=0;k<4;k++){ const w=wt[k]; if(w<=0)continue; tot+=w; const b=bones[ix[k]]; if(b&&re.test(b.name)) r+=w; }
+      rm[v]= tot>0? r/tot : 0;
+    }
+    const keep=[];
+    for(let t=0;t<idx.count;t+=3){ const a=idx.getX(t),b=idx.getX(t+1),c=idx.getX(t+2);
+      if(rm[a]+rm[b]+rm[c] < 1.5) keep.push(a,b,c); }
+    const ratio=keep.length/idx.count;
+    if(ratio>0.02 && ratio<0.999) geo.setIndex(new TH.Uint32BufferAttribute(keep,1));
+  }
+  function buildRiderTemplate(gltf, cfg){
+    cfg=cfg||{}; const yaw=cfg.yaw||0;
+    const root=gltf.scene;
+    root.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; o.castShadow=true; } });
+    root.updateMatrixWorld(true);
+    if(cfg.strip) root.traverse(o=>{ if(o.isSkinnedMesh) stripBones(o, cfg.strip); });
+    // measure only the character body (skinned meshes), ignoring effect/particle meshes
+    const box=new TH.Box3(); let any=false;
+    root.traverse(o=>{ if(o.isSkinnedMesh){ box.union(new TH.Box3().setFromObject(o)); any=true; } });
+    if(!any) box.setFromObject(root);
+    const size=new TH.Vector3(); box.getSize(size);
+    const s=RIDER_H/Math.max(size.y,0.001);
+    const inner=new TH.Group();
+    if(cfg.center==='bbox'){
+      // original bounding-box centering (kept for Ashe)
+      const center=new TH.Vector3(); box.getCenter(center);
+      root.position.sub(center);
+      inner.add(root); inner.scale.setScalar(s); inner.rotation.y=yaw;
+      inner.position.y=(size.y/2)*s;   // feet at inner-origin y=0
+    } else {
+      // center on the rig's ground/root bone so weapons & capes don't pull the rider off-center
+      let pick=null;
+      root.traverse(o=>{ if(o.isBone && !pick && /ground_loc/.test(o.name.toLowerCase())) pick=o; });
+      if(!pick) root.traverse(o=>{ if(o.isBone && !pick && o.name.toLowerCase()==='root') pick=o; });
+      if(!pick) root.traverse(o=>{ if(o.isBone && !pick && /pelvis|hip/.test(o.name.toLowerCase())) pick=o; });
+      const pivot=new TH.Vector3();
+      if(pick) pick.getWorldPosition(pivot); else box.getCenter(pivot);
+      root.position.set(-pivot.x, -box.min.y, -pivot.z);  // center on the body axis; feet at y=0
+      inner.add(root); inner.scale.setScalar(s); inner.rotation.y=yaw;
+    }
+    return inner;
+  }
+  function createFallbackBear(riderCol){           // used if boar.glb / loaders fail
+    const model=new TH.Group();
+    const mat=new TH.MeshStandardMaterial({color:new TH.Color(riderCol).lerp(new TH.Color(0xffffff),0.4), roughness:0.7});
+    const body=new TH.Mesh(new TH.SphereGeometry(0.9,16,14),mat);
+    body.scale.set(1,0.8,1.4); body.position.y=0.9; body.castShadow=true; model.add(body);
+    const head=new TH.Mesh(new TH.SphereGeometry(0.55,16,14),mat);
+    head.position.set(0,1.0,1.1); head.castShadow=true; model.add(head);
+    for(const sx of [-1,1]){ const ear=new TH.Mesh(new TH.ConeGeometry(0.18,0.35,6),mat);
+      ear.position.set(sx*0.3,1.45,1.05); model.add(ear); }
+    for(const [lx,lz] of [[-0.45,0.7],[0.45,0.7],[-0.45,-0.6],[0.45,-0.6]]){
+      const leg=new TH.Mesh(new TH.CylinderGeometry(0.2,0.18,0.6,7),mat);
+      leg.position.set(lx,0.3,lz); leg.castShadow=true; model.add(leg); }
+    return model;
+  }
+  function createBear(def, idx){
+    const riderCol=def.col, eyeCol=def.eye!==undefined?def.eye:0xffffff;
+    const group=new TH.Group();
+    const useModel = boarTemplate && TH.SkeletonUtils;
+    const model = useModel ? TH.SkeletonUtils.clone(boarTemplate) : createFallbackBear(riderCol);
+    if(useModel){
+      const tint=new TH.Color(0xffffff);   // pure white boars
+      model.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.frustumCulled=false;
+        o.material=o.material.clone(); if(o.material.color) o.material.color.copy(tint);
+        if(o.material.emissive) o.material.emissive=new TH.Color(0x0a0e12); } });
+    }
+    group.add(model);
+    // big, friendly "door"-shaped (tall rounded-rectangle) eyes instead of creepy round pupils
+    const ep = (useModel && boarDims) ? boarDims : {eyeX:0.18,eyeY:1.05,eyeZ:1.35,eyeR:0.11};
+    const doorShape=(w,h,r)=>{ const s=new TH.Shape(), x=-w/2, y=-h/2;
+      s.moveTo(x+r,y); s.lineTo(x+w-r,y); s.quadraticCurveTo(x+w,y,x+w,y+r);
+      s.lineTo(x+w,y+h-r); s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+      s.lineTo(x+r,y+h); s.quadraticCurveTo(x,y+h,x,y+h-r);
+      s.lineTo(x,y+r); s.quadraticCurveTo(x,y,x+r,y); return s; };
+    const doorGeo=(w,h,r,d)=>{ const g=new TH.ExtrudeGeometry(doorShape(w,h,r),{depth:d,bevelEnabled:false}); g.translate(0,0,-d/2); return g; };
+    for(const sx of [-1,1]){
+      const ex=sx*ep.eyeX, ey=ep.eyeY;
+      const Rw=ep.eyeR;            // white sphere — sized to fill the socket so the eye doesn't look loose
+      const R=ep.eyeR*0.62;        // door-pupil feature scale (kept small & cute)
+      const cz=ep.eyeZ - Rw*0.92;  // recess the eyeball so it sits in the socket without bulging
+      const fz=cz + Rw;            // front pole of the white, where the pupil sits
+      const ox=sx*Rw*0.32;         // push the pupil toward the outer side of the face (away from the nose)
+      // white of the eye
+      const sclera=new TH.Mesh(new TH.SphereGeometry(Rw,18,14),
+        new TH.MeshStandardMaterial({color:0xffffff, roughness:0.35, emissive:0x0a0a0a}));
+      sclera.position.set(ex,ey,cz); sclera.scale.set(1,1.12,1); group.add(sclera);
+      // colored frame around the pupil (keeps a hint of team color, no creepy glow)
+      const iris=new TH.Mesh(doorGeo(R*0.86,R*1.62,R*0.3,R*0.2),
+        new TH.MeshStandardMaterial({color:eyeCol, emissive:eyeCol, emissiveIntensity:0.12, roughness:0.45}));
+      iris.position.set(ex+ox,ey,fz - R*0.1); group.add(iris);
+      // dark door-shaped pupil
+      const pupil=new TH.Mesh(doorGeo(R*0.6,R*1.42,R*0.22,R*0.22),
+        new TH.MeshStandardMaterial({color:0x0b0b0b, roughness:0.3}));
+      pupil.position.set(ex+ox,ey,fz + R*0.02); group.add(pupil);
+      // cute catchlight near the top of the pupil
+      const glint=new TH.Mesh(new TH.SphereGeometry(R*0.14,8,8),
+        new TH.MeshBasicMaterial({color:0xffffff}));
+      glint.position.set(ex+ox+sx*R*0.1, ey+R*0.4, fz + R*0.18); group.add(glint);
+    }
+    // mounted rider on the boar's back
+    const rt = riderTemplates[idx];
+    if(rt && TH.SkeletonUtils){
+      try{
+        const rider=TH.SkeletonUtils.clone(rt);
+        const rcfg=RIDERS[idx]||{};
+        const seatFrac=rcfg.seat!==undefined?rcfg.seat:RIDER_SEAT_Y;
+        const seatY=(boarDims? boarDims.top : 1.5)*seatFrac;
+        rider.position.set(0, seatY, RIDER_SEAT_Z);
+        group.add(rider);
+        window.__ridersAdded=(window.__ridersAdded||0)+1;
+      }catch(e){ window.__riderErr=String(e&&e.message||e); console.error('rider clone failed',e); }
+    }
+    const ring=new TH.Mesh(new TH.RingGeometry(0.85,1.2,28),
+      new TH.MeshBasicMaterial({color:riderCol,transparent:true,opacity:0.7,side:TH.DoubleSide,blending:TH.AdditiveBlending,depthWrite:false}));
+    ring.rotation.x=-Math.PI/2; ring.position.y=0.07; group.add(ring);
+    const bubble=new TH.Mesh(new TH.SphereGeometry(1.5,16,12),
+      new TH.MeshBasicMaterial({color:0xffd34d,transparent:true,opacity:0.28,blending:TH.AdditiveBlending,depthWrite:false}));
+    bubble.position.y=1.0; bubble.visible=false; group.add(bubble);
+    return {group, model, ring, bubble};
+  }
+
+  // ============ STATE ============
+  let bears=[], state='menu', elapsed=0, timeLeft=MATCH, winnerText='';
+
+  function spawn(){
+    bears=slots.map((s,i)=>{
+      const p=PLAYERS[s.char];
+      const built=createBear(p,s.char); scene.add(built.group);   // s.char selects this slot's rider model
+      const a=(i/slots.length)*Math.PI*2+Math.PI/4, r=(R_CORE+R_OUT)/2;
+      return {...built, def:p, idx:i, human:s.type!=='cpu', remote:s.type==='remote',
+        x:Math.cos(a)*r, z:Math.sin(a)*r, vx:0,vz:0, heading:a+Math.PI,
+        stamina:100, lives:3, alive:true, falling:false, sink:0, phase:Math.random()*6, bump:0,
+        dashCd:0, dashT:0, speedT:0, powerT:0, aiDash:false, tx:0,tz:0,think:0,
+        growT:0, shrinkT:0, stunT:0, size:1, r:BR,
+        hasGlass:false, stasisT:0, wantGlass:false,
+        hasTornado:false, wantTornado:false, knockT:0, _shiftPrev:false};
+    });
+    bears.forEach(b=>{ b.group.position.set(b.x,0,b.z); b.group.rotation.y=b.heading; });
+  }
+  function resetArena(){
+    segs.forEach(s=>{ s.state=0; s.cool=0; s.g.visible=true;
+      s.lipMat.color.set(0xf6fbff); s.lipMat.emissive=new TH.Color(0x000000);
+      s.rocks.forEach((r,k)=>r.material.color.set(rockColors[k%2])); });
+  }
+  function startGame(){
+    if(!boarReady) return;
+    bears.forEach(b=>scene.remove(b.group));
+    pups.forEach(p=>scene.remove(p.m)); pups.length=0;
+    particles.forEach(p=>scene.remove(p.m)); particles=[];
+    fx.forEach(f=>f.objs.forEach(o=>scene.remove(o))); fx.length=0;
+    tornadoes.forEach(t=>scene.remove(t.m)); tornadoes.length=0;
+    boltHolder=null; boltTimer=0; boltGrace=0; liveBolt.visible=false;
+    anvilHolder=null; anvilTimer=0; anvilGrace=0; liveAnvil.visible=false;
+    crushers.forEach(c=>scene.remove(c.m)); crushers.length=0;
+    resetArena();
+    elapsed=0; timeLeft=MATCH; dropT=4; state='countdown';
+    spawn();
+    SND.start();
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('charselect').classList.add('hidden');
+    document.getElementById('topbar').classList.remove('hidden');
+    buildHUD();
+    runCountdown();
+  }
+  function showCountdown(text){
+    const el=document.getElementById('countdown');
+    if(!text){ el.style.display='none'; return; }
+    el.textContent=text; el.style.display='flex';
+    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+  }
+  function runCountdown(){
+    const seq=['3','2','1','GO!']; let i=0;
+    (function step(){
+      if(i<seq.length){
+        const n=seq[i]; showCountdown(n);
+        if(NET.mode==='host') NET.conns.forEach(c=>{ try{c.send({t:'cd',n});}catch(e){} });
+        if(n==='GO!'){ state='playing'; startBGM(); SND.sfx('go'); }
+        else SND.sfx('count');
+        i++; setTimeout(step,800);
+      } else { showCountdown(''); if(NET.mode==='host') NET.conns.forEach(c=>{ try{c.send({t:'cd',n:''});}catch(e){} }); }
+    })();
+  }
+
+  // ============ PARTICLES ============
+  const partGeo=new TH.SphereGeometry(0.12,6,6);
+  const splashMat=new TH.MeshBasicMaterial({color:0xbfeaff});
+  const sparkMat =new TH.MeshBasicMaterial({color:0xffffff});
+  const healMat  =new TH.MeshBasicMaterial({color:0x6dff8f});
+  let particles=[];
+  function burst(x,y,z,mat,n,spd,up){
+    for(let i=0;i<n;i++){ const m=new TH.Mesh(partGeo,mat); m.position.set(x,y,z); scene.add(m);
+      const a=Math.random()*6.28,e=Math.random()*spd;
+      particles.push({m,vx:Math.cos(a)*e,vy:up+Math.random()*spd,vz:Math.sin(a)*e,life:0.6+Math.random()*0.4}); }
+  }
+
+  // ============ INPUT ============
+  const keys={};
+  addEventListener('keydown',e=>{ const k=e.key.toLowerCase(); if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault(); keys[k]=true;});
+  addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false;});
+
+  // ============ AI ============
+  function aiThink(b,dt){
+    b.think-=dt; if(b.think>0) return; b.think=0.12+Math.random()*0.08;
+    let near=null,nd=1e9;
+    for(const o of bears){ if(o!==b&&o.alive){const d=Math.hypot(o.x-b.x,o.z-b.z); if(d<nd){nd=d;near=o;}}}
+    let bx=0,bz=0,best=-1e9;
+    for(let i=0;i<16;i++){
+      const ang=(i/16)*6.28, dx=Math.cos(ang), dz=Math.sin(ang);
+      const lx=b.x+dx*2.6, lz=b.z+dz*2.6, d=Math.hypot(lx,lz);
+      let s=0;
+      if(d>R_OUT) s-= edgeBroken(lx,lz)?1000:200;       // off the floor / past the rim
+      else if(d>R_OUT-1.1) s-= edgeBroken(lx,lz)?600:70; // hug away from edges (broken = deadly)
+      else s-=Math.abs(d-R_OUT*0.45)*2;                  // prefer mid-floor
+      if(near&&nd<7){ const ndx=near.x-b.x,ndz=near.z-b.z,nm=Math.hypot(ndx,ndz)||1; s+=(dx*ndx+dz*ndz)/nm*120; }
+      s+=(Math.random()-0.5)*45;
+      if(s>best){best=s;bx=dx;bz=dz;}
+    }
+    b.tx=bx; b.tz=bz;
+    // hourglass: dodge an imminent live-wire detonation
+    b.wantGlass = b.hasGlass && b.stasisT<=0 && boltHolder && boltHolder!==b && boltTimer>0 && boltTimer<0.9;
+    // fire a held tornado when a rival is lined up in front and within range
+    b.wantTornado = b.hasTornado && near && nd<TORN_RANGE*0.85 &&
+      (Math.sin(b.heading)*(near.x-b.x)+Math.cos(b.heading)*(near.z-b.z))/(nd||1) > 0.45;
+    // dash decision
+    b.aiDash=false;
+    if(near&&nd<3.0){
+      const fdx=Math.sin(b.heading),fdz=Math.cos(b.heading);
+      const ndx=(near.x-b.x)/(nd||1),ndz=(near.z-b.z)/(nd||1);
+      if(fdx*ndx+fdz*ndz>0.4 && Math.random()<0.6) b.aiDash=true;
+    }
+  }
+
+  // ============ UPDATE ============
+  function update(dt){
+    elapsed+=dt;
+    auroraMat.uniforms.t.value=elapsed;
+    waterMat.uniforms.t.value=elapsed;
+    updateUFO(dt);
+
+    for(const p of particles){ p.vy-=14*dt; p.m.position.x+=p.vx*dt; p.m.position.y+=p.vy*dt; p.m.position.z+=p.vz*dt; p.life-=dt; }
+    particles=particles.filter(p=>{ if(p.life<=0){scene.remove(p.m);return false;} return true;});
+    for(const s of segs) if(s.cool>0) s.cool-=dt;
+    for(let fi=fx.length-1;fi>=0;fi--){ const f=fx[fi]; f.life-=dt; const k=Math.max(0,f.life/f.max);
+      f.objs.forEach((o,oi)=>{ o.material.opacity=f.base[oi]*k; });
+      if(f.life<=0){ f.objs.forEach(o=>scene.remove(o)); fx.splice(fi,1); } }
+
+    if(state!=='playing') return;
+    timeLeft=Math.max(0,timeLeft-dt);
+
+    // live-wire hot-potato countdown
+    if(boltHolder){
+      if(!boltHolder.alive || boltHolder.falling){ boltHolder=null; liveBolt.visible=false; }
+      else {
+        if(boltGrace>0) boltGrace-=dt;
+        boltTimer-=dt;
+        liveBolt.position.set(boltHolder.x, 2.6*(boltHolder.size||1), boltHolder.z);
+        liveBolt.rotation.y += dt*5;
+        if(boltTimer<=0) detonateBolt();
+      }
+    }
+
+    // anvil hot-potato countdown
+    if(anvilHolder){
+      if(!anvilHolder.alive || anvilHolder.falling){ anvilHolder=null; liveAnvil.visible=false; }
+      else {
+        if(anvilGrace>0) anvilGrace-=dt;
+        anvilTimer-=dt;
+        liveAnvil.position.set(anvilHolder.x, 3.0*(anvilHolder.size||1), anvilHolder.z);
+        liveAnvil.rotation.y += dt*1.3;
+        if(anvilTimer<=0) detonateAnvil();
+      }
+    }
+    // giant anvils falling on doomed holders
+    for(let i=crushers.length-1;i>=0;i--){
+      const c=crushers[i];
+      if(c.landed){ c.rest-=dt; if(c.rest<=0){ scene.remove(c.m); crushers.splice(i,1);} continue; }
+      c.vy+=70*dt; c.m.position.y-=c.vy*dt; c.m.rotation.y+=dt*1.2;
+      if(c.victim && c.victim.alive){ c.m.position.x=c.victim.x; c.m.position.z=c.victim.z; }
+      if(c.m.position.y<=0.5){
+        c.m.position.y=0.5; c.landed=true; c.rest=1.4;
+        const v=c.victim;
+        if(v && v.alive && v.stasisT>0){
+          // Zhonya's stasis — the anvil clangs off the golden shield, no kill
+          burst(c.m.position.x,1.0,c.m.position.z,sparkMat,22,7,4); SND.sfx('hit');
+        } else {
+          burst(c.m.position.x,0.6,c.m.position.z,splashMat,34,8,5);
+          if(v && v.alive){ v.lives=0; v.alive=false; v.group.visible=false; }
+          SND.sfx('break');
+        }
+      }
+    }
+
+    // powerup drops
+    dropT-=dt;
+    if(dropT<=0){ dropT=6+Math.random()*3; spawnPickup(); }
+    for(const p of pups){
+      if(!p.landed){ p.vy-=18*dt; p.m.position.y+=p.vy*dt; if(p.m.position.y<=0.9){ p.m.position.y=0.9; p.landed=true; burst(p.x,0.9,p.z,sparkMat,8,3,2);} }
+      else { p.spin+=dt*2; p.m.rotation.y=p.spin; p.m.position.y=0.9+Math.sin(elapsed*3+p.spin)*0.12; }
+    }
+
+    // tornadoes travel forward and pop up anyone they catch
+    for(let ti=tornadoes.length-1; ti>=0; ti--){
+      const t=tornadoes[ti], step=TORN_SPEED*dt;
+      t.x+=t.dx*step; t.z+=t.dz*step; t.dist+=step;
+      t.m.position.set(t.x,0,t.z); t.m.rotation.y+=dt*16;
+      for(const o of bears){ if(o===t.src||!o.alive||o.falling||o.stasisT>0||t.hit.indexOf(o)>=0) continue;
+        if(Math.hypot(o.x-t.x,o.z-t.z) < TORN_R+o.r){ knockUp(o); t.hit.push(o); } }
+      if(t.dist>=TORN_RANGE){ scene.remove(t.m); tornadoes.splice(ti,1); }
+    }
+
+    const accelB=30, maxvB=14;
+    for(const b of bears){
+      if(!b.alive) continue;
+      if(b.speedT>0)b.speedT-=dt; if(b.powerT>0)b.powerT-=dt;
+      if(b.growT>0)b.growT-=dt; if(b.shrinkT>0)b.shrinkT-=dt; if(b.stunT>0)b.stunT-=dt;
+      if(b.dashCd>0)b.dashCd-=dt; if(b.dashT>0)b.dashT-=dt; if(b.knockT>0)b.knockT-=dt;
+      b.stamina=Math.min(100, b.stamina+25*dt);   // regen 25 stamina/sec
+      b.size = b.growT>0?GROW_SCALE : b.shrinkT>0?SHRINK_SCALE : 1;
+      b.r = BR*b.size;
+
+      if(b.falling){
+        b.sink+=dt*1.4; b.group.position.set(b.x,-b.sink*2.2,b.z); b.group.rotation.x=b.sink*0.6;
+        if(b.sink>1){
+          b.lives-=1; b.falling=false; b.sink=0; b.group.rotation.x=0;
+          if(b.lives<=0){ b.lives=0; b.alive=false; b.group.visible=false; burst(b.x,1,b.z,splashMat,18,5,4); }
+          else { const a=Math.random()*6.28,r=Math.random()*3; b.x=Math.cos(a)*r; b.z=Math.sin(a)*r; b.vx=b.vz=0; b.group.visible=true; b.group.position.set(b.x,0,b.z);}
+        }
+        continue;
+      }
+
+      // ---- resolve control input: remote network / local keyboard / AI ----
+      let inAx=0,inAz=0,inDash=false,inShift=false; const aiCtl=!b.human;
+      if(b.remote){
+        const ip=slots[b.idx]&&slots[b.idx].input;
+        if(ip){ inAx=ip.ax||0; inAz=ip.az||0; inDash=!!ip.dash; inShift=!!ip.shift; }
+      } else if(b.human){
+        if(keys['a']||keys['arrowleft'])inAx-=1; if(keys['d']||keys['arrowright'])inAx+=1;
+        if(keys['w']||keys['arrowup'])inAz-=1; if(keys['s']||keys['arrowdown'])inAz+=1;
+        inDash=!!keys[' ']; inShift=!!keys['shift'];
+      } else { aiThink(b,dt); inAx=b.tx; inAz=b.tz; }
+
+      // Shift activates a held item — tornado takes priority over the hourglass
+      if(aiCtl){
+        if(b.wantTornado && b.hasTornado && b.stunT<=0 && b.knockT<=0) launchTornado(b);
+        else if(b.wantGlass && b.hasGlass && b.stasisT<=0) enterStasis(b);
+      } else {
+        if(inShift && !b._shiftPrev){
+          if(b.hasTornado && b.stunT<=0 && b.knockT<=0) launchTornado(b);
+          else if(b.hasGlass && b.stasisT<=0) enterStasis(b);
+        }
+        b._shiftPrev=inShift;
+      }
+      if(b.stasisT>0){                              // frozen, fully gold, untouchable
+        b.stasisT-=dt; b.vx=0; b.vz=0;
+        b.group.position.set(b.x,0,b.z);
+        if(b.stasisT<=0){ b.stasisT=0; setGolden(b.group,false); }
+        continue;
+      }
+
+      let ax=inAx,az=inAz;
+      if(b.stunT>0||b.knockT>0){ ax=0; az=0; }     // stunned or airborne: no control
+      const m=Math.hypot(ax,az); if(m>0){ax/=m;az/=m;}
+      const slow=b.shrinkT>0?0.6:1;                // shrink = slower
+      const accel=accelB*(b.speedT>0?1.4:1)*slow;
+      b.vx+=ax*accel*dt; b.vz+=az*accel*dt;
+      b.vx*=Math.exp(-1.25*dt); b.vz*=Math.exp(-1.25*dt);
+
+      // dash trigger
+      const wantDash = (b.stunT<=0 && b.knockT<=0) && (aiCtl ? b.aiDash : inDash);
+      if(wantDash && b.dashCd<=0 && b.stamina>=50){
+        b.dashT=DASH_TIME; b.dashCd=DASH_CD; b.stamina-=50; b.aiDash=false;   // dash costs half the stamina bar
+        const imp=DASH_IMP;
+        b.vx+=Math.sin(b.heading)*imp; b.vz+=Math.cos(b.heading)*imp;
+        burst(b.x-Math.sin(b.heading), 0.8, b.z-Math.cos(b.heading), sparkMat,6,3,2);
+        SND.sfx('dash');
+      }
+      const maxNow = maxvB*(b.speedT>0?1.5:1)*(b.dashT>0?2.2:1)*slow;
+      const sp=Math.hypot(b.vx,b.vz); if(sp>maxNow){b.vx=b.vx/sp*maxNow; b.vz=b.vz/sp*maxNow;}
+      b.x+=b.vx*dt; b.z+=b.vz*dt;
+      b.bump=Math.max(0,b.bump-dt*4);
+
+      // pickups
+      for(let pi=pups.length-1;pi>=0;pi--){ const p=pups[pi]; if(!p.landed)continue;
+        if(Math.hypot(b.x-p.x,b.z-p.z)<1.3){ applyPickup(b,p.def.type); scene.remove(p.m); pups.splice(pi,1); } }
+
+      // edge handling: floor is always solid, only the rim wall breaks
+      const d=Math.hypot(b.x,b.z);
+      const idx=segIndex(b.x,b.z);
+      if(segs[idx].state<2){
+        if(d>R_OUT-b.r){                    // intact rim -> bounce + damage it
+          const nx=b.x/d,nz=b.z/d; b.x=nx*(R_OUT-b.r); b.z=nz*(R_OUT-b.r);
+          const vn=b.vx*nx+b.vz*nz;
+          if(vn>0){ b.vx-=1.6*vn*nx; b.vz-=1.6*vn*nz; if(vn>3) damageSeg(idx, nx*R_OUT, nz*R_OUT); }
+        }
+      } else {                              // edge broken here -> no wall, slide off & fall
+        if(d>R_OUT){ b.falling=true; b.sink=0; burst(b.x,0.4,b.z,splashMat,16,4,3.5); SND.sfx('fall'); }
+      }
+    }
+
+    // bear-bear collisions (+ dash damage)
+    for(let i=0;i<bears.length;i++)for(let j=i+1;j<bears.length;j++){
+      const a=bears[i],c=bears[j];
+      if(!a.alive||!c.alive||a.falling||c.falling)continue;
+      if(a.stasisT>0||c.stasisT>0)continue;        // golden stasis: pass through
+      const dx=c.x-a.x,dz=c.z-a.z,d=Math.hypot(dx,dz)||0.001;
+      const rr=a.r+c.r;
+      if(d<rr){
+        const nx=dx/d,nz=dz/d,ov=rr-d;
+        const aImm=a.growT>0, cImm=c.growT>0;   // grown bears can't be bumped
+        if(aImm&&!cImm){ c.x+=nx*ov; c.z+=nz*ov; }
+        else if(cImm&&!aImm){ a.x-=nx*ov; a.z-=nz*ov; }
+        else { a.x-=nx*ov/2; a.z-=nz*ov/2; c.x+=nx*ov/2; c.z+=nz*ov/2; }
+        const vn=(c.vx-a.vx)*nx+(c.vz-a.vz)*nz;
+        if(vn<0){ const imp=-vn*1.3; if(!aImm){a.vx-=nx*imp;a.vz-=nz*imp;} if(!cImm){c.vx+=nx*imp;c.vz+=nz*imp;} a.bump=1;c.bump=1; }
+        // hit the live-bolt holder to steal it
+        if(boltHolder && boltGrace<=0){
+          if(a===boltHolder && c!==boltHolder){ boltHolder=c; boltGrace=0.7; SND.sfx('hit'); }
+          else if(c===boltHolder && a!==boltHolder){ boltHolder=a; boltGrace=0.7; SND.sfx('hit'); }
+        }
+        // hit the anvil holder to pass it on
+        if(anvilHolder && anvilGrace<=0){
+          if(a===anvilHolder && c!==anvilHolder){ anvilHolder=c; anvilGrace=0.7; SND.sfx('hit'); }
+          else if(c===anvilHolder && a!==anvilHolder){ anvilHolder=a; anvilGrace=0.7; SND.sfx('hit'); }
+        }
+        const aD=a.dashT>0, cD=c.dashT>0, mid={x:(a.x+c.x)/2,z:(a.z+c.z)/2};
+        if(aD&&!cD){ if(!cImm){ c.vx+=nx*DASH_BONUS;c.vz+=nz*DASH_BONUS; } burst(mid.x,1,mid.z,sparkMat,12,5,3); SND.sfx('hit');}
+        else if(cD&&!aD){ if(!aImm){ a.vx-=nx*DASH_BONUS;a.vz-=nz*DASH_BONUS; } burst(mid.x,1,mid.z,sparkMat,12,5,3); SND.sfx('hit');}
+        else if(aD&&cD){ burst(mid.x,1,mid.z,sparkMat,10,5,3); SND.sfx('hit');}
+      }
+    }
+
+    // visuals
+    for(const b of bears){
+      if(!b.alive||b.falling) continue;
+      const sp=Math.hypot(b.vx,b.vz);
+      if(sp>0.6) b.heading=Math.atan2(b.vx,b.vz);
+      b.phase+=dt*(4+sp*0.8);
+      const bob=Math.sin(b.phase*2)*0.06*(sp>1?1:0.3);
+      let yPos=bob;
+      if(b.knockT>0){ const pr=1-b.knockT/KNOCK_T; yPos=Math.sin(pr*Math.PI)*3.0; b.group.rotation.y+=dt*12; }
+      else b.group.rotation.y=b.heading;
+      b.group.position.set(b.x,yPos,b.z);
+      const size=b.size||1, st=b.dashT>0?1.3:1, sq=1+b.bump*0.12;
+      b.group.scale.set(size/Math.sqrt(sq), size*sq, size*st/Math.sqrt(sq));
+    }
+
+    // win check
+    const live=bears.filter(b=>b.alive);
+    if(live.length<=1 || timeLeft<=0){
+      state='over';
+      const score=b=>b.lives*1000+b.stamina;   // more lives wins; stamina breaks ties
+      let win = live.length===1?live[0] : live.length===0?null : live.reduce((a,b)=>score(b)>score(a)?b:a);
+      const widx = win?bears.indexOf(win):-1, wname = win?win.def.name:'';
+      if(NET.mode==='host'){
+        winnerText = widx===0?'YOU WIN!' : (win?wname+' WINS':'WIPEOUT!');
+        NET.conns.forEach(c=>{ try{c.send({t:'over', idx:widx, name:wname});}catch(e){} });
+      } else {
+        winnerText = !win?'WIPEOUT!' : (win.human?'YOU WIN!':wname+' WINS');
+      }
+      SND.sfx('win');
+      showOver();
+    }
+    updateHUD();
+  }
+  function hurt(b,dmg){ b.health-=dmg; if(b.health<=0){ b.health=0; b.alive=false; b.group.visible=false; burst(b.x,1,b.z,b.def?sparkMat:splashMat,16,5,4);} }
+
+  // camera idle drift
+  let camA=0;
+  function updateCamera(dt){ camA+=dt*0.05;
+    camera.position.set(Math.sin(camA*0.25)*2.2, 13, 20); camera.lookAt(0,0.6,0); }
+
+  // ============ HUD ============
+  function buildHUD(){
+    bears.forEach((b,i)=>{ const card=document.getElementById('card'+i); card.className='pcard';
+      card.innerHTML=`<div class="prow">
+        <div class="portrait" id="port${i}" style="background:${b.def.ui}">${b.def.emoji}</div>
+        <span class="arrow">▲</span>
+        <div class="barwrap"><div class="bar" id="bar${i}"></div></div>
+      </div><div class="pname" id="nm${i}">${b.def.name}${b.human?' (YOU)':''}</div>`; });
+  }
+  function updateHUD(){
+    const t=Math.ceil(timeLeft);
+    document.getElementById('timer').textContent=Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
+    bears.forEach((b,i)=>{
+      const card=document.getElementById('card'+i), bar=document.getElementById('bar'+i),
+            port=document.getElementById('port'+i), nm=document.getElementById('nm'+i);
+      if(bar) bar.style.width=Math.max(0,b.stamina)+'%';
+      if(card) card.classList.toggle('dead',!b.alive);
+      if(port){ let glow='0 3px 8px rgba(0,0,0,.6),inset 0 0 10px rgba(255,255,255,.4)';
+        if(b.stasisT>0) glow='0 0 18px #ffd24a,'+glow; else if(b.hasGlass) glow='0 0 12px #ffd24a,'+glow; else if(b.stunT>0) glow='0 0 16px #6fd3ff,'+glow;
+        port.style.boxShadow=glow; }
+      if(nm){ let tag=''; if(b.stasisT>0)tag=' ✨'; else if(b.hasTornado)tag=' 🌪️'; else if(b.hasGlass)tag=' ⏳'; else if(b.knockT>0)tag=' 🌀'; else if(b.stunT>0)tag=' 💫'; nm.textContent=b.def.name+(b.human?' (YOU)':'')+tag; }
+    });
+  }
+  function showOver(){
+    document.getElementById('topbar').classList.add('hidden');
+    const ov=document.getElementById('overlay'); ov.classList.remove('hidden');
+    ov.innerHTML=`<h1>${winnerText}</h1><div class="tag">❄ FRELJORD FALLS ❄</div>
+      <p>${winnerText.startsWith('YOU')?'You stayed afloat and broke the floe out from under everyone else. Champion!':'The sea claimed you. Dash rivals into the cracking rim and stay off the gaps.'}</p>
+      <button id="againBtn">REMATCH</button>
+      <button id="charBtn" style="font-size:15px;padding:10px 26px;background:#274b66;color:#cfe9ff;box-shadow:0 4px 0 #16344a,0 8px 16px rgba(0,0,0,.45)">${NET.mode==='host'?'BACK TO LOBBY':'CHARACTER SELECT'}</button>
+      <div class="small">Tip: the rim breaks after two hits — shove rivals into it, then dash them through the gap</div>`;
+    document.getElementById('againBtn').onclick=()=>{
+      if(NET.mode==='host'){ NET.conns.forEach(c=>{ try{c.send({t:'start', slots:serializeSlots()});}catch(e){} }); }
+      startGame();
+    };
+    document.getElementById('charBtn').onclick=()=>{ if(NET.mode==='host') showLobby(true); else showCharSelect(); };
+  }
+
+  // ============ LOOP ============
+  const clock=new TH.Clock();
+  function loop(){ let dt=clock.getDelta(); if(dt>0.05)dt=0.05;
+    if(NET.mode==='client') clientUpdate(dt);
+    else { update(dt); netHostTick(dt); }
+    updateCamera(dt); renderer.render(scene,camera); updateBoltCd(); updateAnvilCd(); requestAnimationFrame(loop); }
+  addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+  // ---- character select screen ----
+  const charSelEl=document.getElementById('charselect');
+  function renderSlots(){
+    document.querySelectorAll('#slots .slot').forEach((card,i)=>{
+      const c=PLAYERS[slots[i].char], r=card._refs, isHuman=slots[i].type!=='cpu';
+      r.face.textContent=c.emoji; r.face.style.background=c.ui;
+      r.name.textContent=c.name; r.name.style.color=c.ui;
+      r.ctrl.textContent=isHuman?'HUMAN':'CPU';
+      r.ctrl.className='ctrl '+(isHuman?'human':'cpu');
+    });
+  }
+  function buildCharSelect(){
+    const wrap=document.getElementById('slots'); wrap.innerHTML='';
+    slots.forEach((s,i)=>{
+      const card=document.createElement('div'); card.className='slot';
+      const num=document.createElement('div'); num.className='slotnum'; num.textContent='SLOT '+(i+1);
+      const rowEl=document.createElement('div'); rowEl.className='slotrow';
+      const prev=document.createElement('button'); prev.className='cyc'; prev.textContent='◀';
+      const face=document.createElement('div'); face.className='slotface';
+      const next=document.createElement('button'); next.className='cyc'; next.textContent='▶';
+      rowEl.append(prev,face,next);
+      const name=document.createElement('div'); name.className='slotname';
+      const ctrl=document.createElement('button'); ctrl.className='ctrl';
+      card.append(num,rowEl,name,ctrl); card._refs={face,name,ctrl};
+      prev.onclick=()=>{ slots[i].char=(slots[i].char+PLAYERS.length-1)%PLAYERS.length; renderSlots(); SND.sfx('count'); };
+      next.onclick=()=>{ slots[i].char=(slots[i].char+1)%PLAYERS.length; renderSlots(); SND.sfx('count'); };
+      ctrl.onclick=()=>{ slots[i].type=(slots[i].type==='cpu')?'local':'cpu'; renderSlots(); SND.sfx('pickup'); };
+      wrap.appendChild(card);
+    });
+    renderSlots();
+  }
+  function showCharSelect(){
+    SND.start();   // unlock audio on this user gesture
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('topbar').classList.add('hidden');
+    charSelEl.classList.remove('hidden');
+    buildCharSelect();
+  }
+  document.getElementById('startBtn').onclick=()=>{ if(boarReady) showCharSelect(); };
+  document.getElementById('playBtn').onclick=()=>{ if(boarReady){ charSelEl.classList.add('hidden'); startGame(); } };
+
+  // ============ ONLINE MULTIPLAYER (PeerJS, host-authoritative) — Stage 1: connection + lobby ============
+  const NET={ mode:'off', peer:null, conns:[], hostConn:null, code:null, mySlot:0 };
+  const lobbyEl=document.getElementById('lobby');
+  const roomCodeEl=document.getElementById('roomCode');
+  const lobbyMsgEl=document.getElementById('lobbyMsg');
+  const lobbyStartBtn=document.getElementById('lobbyStartBtn');
+  function randCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
+  function serializeSlots(){ return slots.map(s=>({char:s.char, type:s.type, name:s.name||''})); }
+  function applyServerSlots(ss){ ss.forEach((s,i)=>{ if(!slots[i])slots[i]={}; slots[i].char=s.char; slots[i].type=s.type; slots[i].name=s.name; }); }
+  function lobbyError(msg){ lobbyMsgEl.style.color='#ff8a6a'; lobbyMsgEl.textContent=String((msg&&msg.message)||msg||'Connection error'); }
+  function showLobby(isHost){
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('topbar').classList.add('hidden');
+    charSelEl.classList.add('hidden');
+    lobbyEl.classList.remove('hidden');
+    roomCodeEl.textContent=NET.code||'····';
+    lobbyStartBtn.style.display=isHost?'':'none';
+    lobbyMsgEl.style.color='';
+    lobbyMsgEl.textContent=isHost?'Share the room code. Press START MATCH when everyone is in.':'Connecting…';
+    renderLobby();
+  }
+  function renderLobby(){
+    const wrap=document.getElementById('lobbySlots'); if(!wrap) return; wrap.innerHTML='';
+    slots.forEach((s,i)=>{
+      const c=PLAYERS[s.char], mine=(i===NET.mySlot);
+      const card=document.createElement('div'); card.className='slot';
+      const num=document.createElement('div'); num.className='slotnum'; num.textContent='SLOT '+(i+1);
+      const rowEl=document.createElement('div'); rowEl.className='slotrow';
+      const face=document.createElement('div'); face.className='slotface'; face.textContent=c.emoji; face.style.background=c.ui;
+      if(mine){ const prev=document.createElement('button'); prev.className='cyc'; prev.textContent='◀';
+        const next=document.createElement('button'); next.className='cyc'; next.textContent='▶';
+        prev.onclick=()=>pickChar(-1); next.onclick=()=>pickChar(1); rowEl.append(prev,face,next); }
+      else rowEl.append(face);
+      const name=document.createElement('div'); name.className='slotname'; name.textContent=c.name; name.style.color=c.ui;
+      const role=document.createElement('div'); let cls,txt;
+      if(s.type==='cpu'){ cls='cpu'; txt='CPU'; }
+      else if(mine){ cls='you'; txt= (NET.mode==='host'&&i===0)?'YOU (HOST)':'YOU'; }
+      else if(i===0){ cls='host'; txt='HOST'; }
+      else { cls='remote'; txt='PLAYER'; }
+      role.className='role '+cls; role.textContent=txt;
+      card.append(num,rowEl,name,role); wrap.appendChild(card);
+    });
+  }
+  function pickChar(dir){
+    const i=NET.mySlot; slots[i].char=(slots[i].char+dir+PLAYERS.length)%PLAYERS.length;
+    SND.sfx('count'); renderLobby();
+    if(NET.mode==='host') broadcastLobby();
+    else if(NET.hostConn){ try{ NET.hostConn.send({t:'pick', char:slots[i].char}); }catch(e){} }
+  }
+  function broadcastLobby(){ const data={t:'lobby', slots:serializeSlots()}; NET.conns.forEach(c=>{ try{c.send(data);}catch(e){} }); }
+  // ---- host ----
+  function hostOnline(){
+    if(!window.Peer){ alert('Networking failed to load (needs internet).'); return; }
+    if(!boarReady){ return; }
+    NET.mode='host'; NET.code=randCode(); NET.mySlot=0; SND.start();
+    slots[0]={char:0,type:'local',name:'P1'}; slots[1]={char:1,type:'cpu'}; slots[2]={char:2,type:'cpu'}; slots[3]={char:3,type:'cpu'};
+    NET.peer=new Peer('frjd-'+NET.code);
+    NET.peer.on('open',()=>showLobby(true));
+    NET.peer.on('connection',conn=>setupHostConn(conn));
+    NET.peer.on('error',e=>{ showLobby(true); lobbyError('Host error: '+(e.type||e)); });
+    clearInterval(NET.hbTimer); NET.hbTimer=setInterval(hostHeartbeat,1000);
+  }
+  function setupHostConn(conn){
+    conn.on('open',()=>{
+      conn._seen=performance.now();
+      if(state==='playing'||state==='countdown'){ try{conn.send({t:'busy'});}catch(e){} setTimeout(()=>{try{conn.close();}catch(e){}},400); return; }
+      const slot=slots.findIndex(s=>s.type==='cpu');
+      if(slot<0){ try{conn.send({t:'full'});}catch(e){} setTimeout(()=>{try{conn.close();}catch(e){}},400); return; }
+      slots[slot]={char:slot, type:'remote', name:'P'+(slot+1), conn};
+      NET.conns.push(conn);
+      try{ conn.send({t:'welcome', slot, slots:serializeSlots()}); }catch(e){}
+      broadcastLobby(); renderLobby();
+    });
+    conn.on('data',d=>onHostData(conn,d));
+    conn.on('close',()=>handleClientGone(conn));
+    conn.on('error',()=>handleClientGone(conn));
+  }
+  function handleClientGone(conn){
+    const i=slots.findIndex(s=>s.conn===conn);
+    if(i>=0){ slots[i]={char:slots[i].char, type:'cpu'};
+      const b=bears[i]; if(b){ b.remote=false; b.human=false; b._shiftPrev=false; } }  // an in-match bear falls back to AI
+    NET.conns=NET.conns.filter(c=>c!==conn);
+    try{conn.close();}catch(e){}
+    if(!lobbyEl.classList.contains('hidden')){ broadcastLobby(); renderLobby(); }
+  }
+  function hostHeartbeat(){
+    if(NET.mode!=='host') return;
+    const now=performance.now();
+    NET.conns.slice().forEach(c=>{ try{c.send({t:'hb'});}catch(e){}
+      if(c._seen && now-c._seen>5000) handleClientGone(c); });   // dropped without a clean close
+  }
+  function onHostData(conn,d){
+    conn._seen=performance.now();
+    const i=slots.findIndex(s=>s.conn===conn); if(i<0) return;
+    if(d.t==='pick'){ slots[i].char=((d.char%PLAYERS.length)+PLAYERS.length)%PLAYERS.length; broadcastLobby(); renderLobby(); }
+    else if(d.t==='input'){ slots[i].input=d; }
+  }
+  // ---- client ----
+  function joinOnline(code){
+    if(!window.Peer){ alert('Networking failed to load (needs internet).'); return; }
+    NET.mode='client'; NET.code=code; NET.mySlot=-1; NET.lastHostMsg=performance.now(); SND.start();
+    NET.peer=new Peer();
+    NET.peer.on('open',()=>{ const conn=NET.peer.connect('frjd-'+code,{reliable:true}); NET.hostConn=conn; setupClientConn(conn); showLobby(false); });
+    NET.peer.on('error',e=>{ showLobby(false); lobbyError('Could not connect: '+(e.type||e)); });
+    clearInterval(NET.checkTimer); NET.checkTimer=setInterval(clientCheck,1000);
+  }
+  function clientCheck(){ if(NET.mode==='client' && performance.now()-NET.lastHostMsg>5000) hostGone(); }
+  function hostGone(){
+    if(NET.mode!=='client') return;
+    clearInterval(NET.checkTimer);
+    try{ if(NET.peer) NET.peer.destroy(); }catch(e){}
+    NET.mode='off'; NET.peer=null; NET.hostConn=null;
+    document.getElementById('topbar').classList.add('hidden');
+    document.getElementById('lobby').classList.add('hidden');
+    const ov=document.getElementById('overlay'); ov.classList.remove('hidden');
+    ov.innerHTML=`<h1>Disconnected</h1><div class="tag">❄ FRELJORD FALLS ❄</div>
+      <p>Lost connection to the host.</p><button onclick="location.reload()">BACK TO MENU</button>`;
+  }
+  function setupClientConn(conn){
+    conn.on('open',()=>{ lobbyMsgEl.style.color=''; lobbyMsgEl.textContent='Connected! Waiting for the host…'; });
+    conn.on('data',d=>onClientData(d));
+    conn.on('close',()=>lobbyError('Lost connection to host.'));
+  }
+  function onClientData(d){
+    NET.lastHostMsg=performance.now();
+    if(d.t==='hb') return;
+    if(d.t==='welcome'){ NET.mySlot=d.slot; applyServerSlots(d.slots); lobbyMsgEl.style.color=''; lobbyMsgEl.textContent='Pick your champion, then wait for the host.'; renderLobby(); }
+    else if(d.t==='lobby'){ applyServerSlots(d.slots); renderLobby(); }
+    else if(d.t==='full'){ lobbyError('Room is full.'); }
+    else if(d.t==='busy'){ lobbyError('A match is already in progress — try again when it ends.'); }
+    else if(d.t==='start'){ applyServerSlots(d.slots); clientStart(); }
+    else if(d.t==='cd'){ showCountdown(d.n); if(d.n==='GO!'){ SND.sfx('go'); startBGM(); } else if(d.n) SND.sfx('count'); }
+    else if(d.t==='snap'){ applySnap(d); }
+    else if(d.t==='over'){ clientShowOver(d.idx===NET.mySlot?'YOU WIN!':(d.name?d.name+' WINS':'WIPEOUT!')); }
+  }
+  function leaveLobby(){
+    clearInterval(NET.hbTimer); clearInterval(NET.checkTimer);
+    try{ NET.conns.forEach(c=>c.close()); }catch(e){}
+    try{ if(NET.hostConn) NET.hostConn.close(); }catch(e){}
+    try{ if(NET.peer) NET.peer.destroy(); }catch(e){}
+    NET.mode='off'; NET.peer=null; NET.conns=[]; NET.hostConn=null; NET.code=null; NET.mySlot=0;
+    slots[0]={char:0,type:'local'}; slots[1]={char:1,type:'cpu'}; slots[2]={char:2,type:'cpu'}; slots[3]={char:3,type:'cpu'};
+    lobbyEl.classList.add('hidden'); document.getElementById('overlay').classList.remove('hidden');
+  }
+  // ---- wire the menu ----
+  document.getElementById('hostBtn').onclick=()=>hostOnline();
+  document.getElementById('joinBtn').onclick=()=>{ const r=document.getElementById('joinRow'); r.classList.toggle('hidden'); if(!r.classList.contains('hidden')) document.getElementById('codeInput').focus(); };
+  document.getElementById('connectBtn').onclick=()=>{ const code=document.getElementById('codeInput').value.trim().toUpperCase(); if(code.length>=3) joinOnline(code); };
+  document.getElementById('codeInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('connectBtn').click(); } });
+  lobbyStartBtn.onclick=()=>{ if(NET.mode==='host'){ NET.conns.forEach(c=>{ try{c.send({t:'start', slots:serializeSlots()});}catch(e){} }); lobbyEl.classList.add('hidden'); startGame(); } };
+  document.getElementById('lobbyBackBtn').onclick=()=>leaveLobby();
+  roomCodeEl.style.cursor='pointer'; roomCodeEl.title='Click to copy';
+  roomCodeEl.onclick=()=>{ if(!NET.code) return; try{ navigator.clipboard.writeText(NET.code); }catch(e){}
+    roomCodeEl.textContent='COPIED'; setTimeout(()=>{ roomCodeEl.textContent=NET.code; },900); };
+
+  // ============ ONLINE — Stage 2: host-authoritative gameplay sync ============
+  const R2=x=>Math.round(x*100)/100;
+  let netAcc=0;
+  function netHostTick(dt){
+    if(NET.mode!=='host' || !NET.conns.length || state==='menu') return;
+    netAcc+=dt; if(netAcc<0.05) return; netAcc=0;          // ~20 snapshots/sec
+    const snap=buildSnapshot();
+    NET.conns.forEach(c=>{ try{c.send(snap);}catch(e){} });
+  }
+  function buildSnapshot(){
+    return { t:'snap', st:state, tl:Math.round(timeLeft*10)/10,
+      bears: bears.map(b=>[R2(b.group.position.x),R2(b.group.position.y),R2(b.group.position.z),R2(b.group.rotation.y),R2(b.size||1),
+        b.alive?1:0, b.stasisT>0?1:0, Math.round(b.stamina), b.lives, b.hasGlass?1:0, b.hasTornado?1:0, b.stunT>0?1:0, b.knockT>0?1:0]),
+      pups: pups.map(p=>[p.id, p.def.type, R2(p.m.position.x), R2(p.m.position.y), R2(p.m.position.z), R2(p.m.rotation.y)]),
+      bolt: boltHolder?[bears.indexOf(boltHolder), Math.max(0,Math.ceil(boltTimer))]:null,
+      anvil: anvilHolder?[bears.indexOf(anvilHolder), Math.max(0,Math.ceil(anvilTimer))]:null,
+      crush: crushers.map(c=>[R2(c.m.position.x),R2(c.m.position.y),R2(c.m.position.z)]),
+      torn: tornadoes.map(tt=>[R2(tt.x),R2(tt.z)]),
+      segs: segs.map(s=>s.state),
+      ufo: [R2(ufo.position.x),R2(ufo.position.y),R2(ufo.position.z)] };
+  }
+  // ---- client: build the render-only world, then drive it from snapshots ----
+  function clientStart(){
+    bears.forEach(b=>scene.remove(b.group));
+    for(const [,m] of cPups){ scene.remove(m); } cPups.clear();
+    cTorn.forEach(m=>scene.remove(m)); cTorn.length=0;
+    cCrush.forEach(m=>scene.remove(m)); cCrush.length=0;
+    resetArena(); segs.forEach(s=>s._cst=undefined);
+    spawn();                              // build render bears from the synced slots
+    bears.forEach(b=>{ b._gold=false; b._tx=b.x; b._ty=0; b._tz=b.z; b._try=b.heading; b._ts=1; });
+    boltHolder=null; anvilHolder=null; liveBolt.visible=false; liveAnvil.visible=false;
+    state='playing';
+    document.getElementById('lobby').classList.add('hidden');
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('topbar').classList.remove('hidden');
+    buildHUD();
+  }
+  const cPups=new Map(), cTorn=[], cCrush=[];
+  function reconcilePups(list){
+    const seen=new Set();
+    list.forEach(p=>{ const id=p[0]; seen.add(id);
+      let m=cPups.get(id); if(!m){ m=makePupVisual(pupByType(p[1])); scene.add(m); cPups.set(id,m); }
+      m.position.set(p[2],p[3],p[4]); m.rotation.y=p[5]; });
+    for(const [id,m] of cPups){ if(!seen.has(id)){ scene.remove(m); cPups.delete(id); } }
+  }
+  function reconcileTorn(list){
+    while(cTorn.length<list.length){ const tm=makeTornado(); tm.scale.setScalar(2*TORN_R); scene.add(tm); cTorn.push(tm); }
+    cTorn.forEach((tm,i)=>{ if(i<list.length){ tm.visible=true; tm.position.set(list[i][0],0,list[i][1]); } else tm.visible=false; });
+  }
+  function reconcileCrush(list){
+    while(cCrush.length<list.length){ const cm=makeAnvil(); cm.scale.setScalar(1.9); scene.add(cm); cCrush.push(cm); }
+    cCrush.forEach((cm,i)=>{ if(i<list.length){ cm.visible=true; cm.position.set(list[i][0],list[i][1],list[i][2]); } else cm.visible=false; });
+  }
+  function applySegsClient(states){
+    states.forEach((st,i)=>{ const s=segs[i]; if(!s||s._cst===st) return; s._cst=st;
+      if(st===0){ s.g.visible=true; s.lipMat.color.set(0xf6fbff); s.lipMat.emissive=new TH.Color(0x000000); s.rocks.forEach((r,k)=>r.material.color.set(rockColors[k%2])); }
+      else if(st===1){ s.g.visible=true; s.lipMat.color.set(0x9fb0bf); s.lipMat.emissive=new TH.Color(0x16242f); s.rocks.forEach(r=>r.material.color.set(0x7f8c99)); }
+      else { s.g.visible=false; }
+    });
+  }
+  function applySnap(s){
+    if(!bears.length) return;
+    state=s.st; timeLeft=s.tl;
+    s.bears.forEach((bd,i)=>{ const b=bears[i]; if(!b) return;
+      b._tx=bd[0]; b._ty=bd[1]; b._tz=bd[2]; b._try=bd[3]; b._ts=bd[4];
+      b.x=bd[0]; b.z=bd[2];
+      const aliveNow=bd[5]===1; b.alive=aliveNow; b.group.visible=aliveNow;
+      const goldNow=bd[6]===1; if(goldNow&&!b._gold){ setGolden(b.group,true); b._gold=true; } else if(!goldNow&&b._gold){ setGolden(b.group,false); b._gold=false; }
+      b.stamina=bd[7]; b.lives=bd[8]; b.hasGlass=bd[9]===1; b.hasTornado=bd[10]===1; b.stunT=bd[11]?1:0; b.knockT=bd[12]?1:0;
+    });
+    boltHolder = s.bolt? (bears[s.bolt[0]]||null) : null; boltTimer = s.bolt? s.bolt[1] : 0; liveBolt.visible=!!s.bolt;
+    anvilHolder = s.anvil? (bears[s.anvil[0]]||null) : null; anvilTimer = s.anvil? s.anvil[1] : 0; liveAnvil.visible=!!s.anvil;
+    reconcilePups(s.pups); reconcileTorn(s.torn); reconcileCrush(s.crush); applySegsClient(s.segs);
+    ufo.position.set(s.ufo[0],s.ufo[1],s.ufo[2]);
+  }
+  let cInputAcc=0;
+  function clientUpdate(dt){
+    elapsed+=dt; auroraMat.uniforms.t.value=elapsed; waterMat.uniforms.t.value=elapsed;
+    const k=1-Math.exp(-16*dt);
+    for(const b of bears){ if(b._tx===undefined) continue; const g=b.group;
+      g.position.x+=(b._tx-g.position.x)*k; g.position.y+=(b._ty-g.position.y)*k; g.position.z+=(b._tz-g.position.z)*k;
+      let d=b._try-g.rotation.y; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; g.rotation.y+=d*k;
+      const sc=b._ts||1; g.scale.x+=(sc-g.scale.x)*k; g.scale.y+=(sc-g.scale.y)*k; g.scale.z+=(sc-g.scale.z)*k; }
+    if(boltHolder){ liveBolt.position.set(boltHolder.group.position.x,2.6,boltHolder.group.position.z); liveBolt.rotation.y+=dt*5; }
+    if(anvilHolder){ liveAnvil.position.set(anvilHolder.group.position.x,3.0,anvilHolder.group.position.z); liveAnvil.rotation.y+=dt*1.3; }
+    cTorn.forEach(tm=>{ if(tm.visible) tm.rotation.y+=dt*16; });
+    cInputAcc+=dt; if(cInputAcc>=0.033){ cInputAcc=0; sendClientInput(); }
+    if(state==='playing'||state==='countdown') updateHUD();
+  }
+  function sendClientInput(){
+    if(!NET.hostConn) return;
+    let ax=0,az=0;
+    if(keys['a']||keys['arrowleft'])ax-=1; if(keys['d']||keys['arrowright'])ax+=1;
+    if(keys['w']||keys['arrowup'])az-=1; if(keys['s']||keys['arrowdown'])az+=1;
+    try{ NET.hostConn.send({t:'input', ax, az, dash:!!keys[' '], shift:!!keys['shift']}); }catch(e){}
+  }
+  function clientShowOver(text){
+    document.getElementById('topbar').classList.add('hidden');
+    const ov=document.getElementById('overlay'); ov.classList.remove('hidden');
+    ov.innerHTML=`<h1>${text}</h1><div class="tag">❄ FRELJORD FALLS ❄</div>
+      <p>${text.startsWith('YOU')?'You stayed afloat. Champion of the Freljord!':'The sea claimed you. Wait for the next round.'}</p>
+      <div class="small">Waiting for the host to start the next match…</div>`;
+  }
+  const muteBtn=document.getElementById('muteBtn');
+  muteBtn.onclick=()=>{ uiMuted=!uiMuted; SND.setMuted(uiMuted);
+    if(ytPlayer&&ytReady){ uiMuted?ytPlayer.mute():ytPlayer.unMute(); }
+    muteBtn.textContent=uiMuted?'🔇':'🔊'; };
+  const volEl=document.getElementById('vol');
+  volEl.oninput=()=>{ const v=+volEl.value;
+    if(ytPlayer&&ytReady){ ytPlayer.setVolume(v); if(v>0&&uiMuted){ uiMuted=false; SND.setMuted(false); ytPlayer.unMute(); muteBtn.textContent='🔊'; } }
+    SND.setMusicVolume(v/100); };
+  const loadingEl=document.getElementById('loading');
+  function finishReady(){
+    boarReady=true; loadingEl.style.display='none';
+    window.__riderLoaded=riderTemplates.map(t=>!!t); window.__boarTop=boarDims?boarDims.top:null;
+    spawn(); bears.forEach(b=>{ b.group.position.set(b.x,0,b.z); b.group.rotation.y=b.heading; });
+  }
+  function loadRiders(done){
+    if(!TH.GLTFLoader){ done(); return; }
+    let pending=RIDERS.length;
+    const fin=()=>{ if(--pending<=0) done(); };
+    RIDERS.forEach((r,i)=>{
+      new TH.GLTFLoader().load(r.file,
+        gltf=>{ try{ riderTemplates[i]=buildRiderTemplate(gltf,r); }catch(e){ console.error('rider prep',r.file,e); } fin(); },
+        undefined,
+        err=>{ console.error('rider load failed',r.file,err); fin(); });
+    });
+  }
+  function loadPilot(){
+    if(!TH.GLTFLoader) return;
+    new TH.GLTFLoader().load('pilot.glb',
+      gltf=>{ try{ mountPilot(gltf); }catch(e){ console.error('pilot prep',e); } },
+      undefined,
+      err=>console.error('pilot load failed',err));
+  }
+  function bootModel(){
+    loadPilot();
+    const afterBoar=()=>{ loadingEl.textContent='LOADING RIDERS…'; loadRiders(finishReady); };
+    if(!TH.GLTFLoader){ console.warn('GLTFLoader unavailable — using fallback model'); finishReady(); return; }
+    try{
+      new TH.GLTFLoader().load('boar.glb',
+        gltf=>{ try{ buildBoarTemplate(gltf); }catch(e){ console.error('boar prep failed',e); } afterBoar(); },
+        xhr=>{ if(xhr.total) loadingEl.textContent='LOADING BOAR… '+Math.round(xhr.loaded/xhr.total*100)+'%'; },
+        err=>{ console.error('boar.glb load failed — using fallback',err); afterBoar(); }
+      );
+    }catch(e){ console.error(e); finishReady(); }
+  }
+  bootModel();
+  loop();
+})();
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>
