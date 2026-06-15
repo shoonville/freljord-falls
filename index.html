@@ -58,6 +58,11 @@
   #joinRow{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:14px}
   #codeInput{font:inherit;font-size:24px;font-weight:bold;letter-spacing:6px;text-align:center;text-transform:uppercase;
     width:140px;padding:10px;border-radius:12px;border:2px solid #2f6a96;background:#0a2236;color:#eaf6ff;outline:none}
+  #nameRow{display:flex;justify-content:center;margin:14px 0 2px}
+  #nameInput{font:inherit;font-size:18px;font-weight:bold;letter-spacing:2px;text-align:center;text-transform:uppercase;
+    width:230px;padding:9px 12px;border-radius:12px;border:2px solid #2f6a96;background:#0a2236;color:#eaf6ff;outline:none}
+  #nameInput::placeholder{color:#5f87a6;letter-spacing:2px}
+  .pchamp{font-size:10px;letter-spacing:1px;color:#8fb0c8;margin-top:-1px}
   #charselect,#lobby{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     text-align:center;z-index:11;background:radial-gradient(circle at 50% 38%,rgba(10,34,58,.6),rgba(3,10,22,.94))}
   #lobby .tag{font-size:14px;letter-spacing:3px;color:#9fd0ee;margin-bottom:4px}
@@ -153,6 +158,9 @@
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
     <span class="key">/</span><span class="key">↑</span><span class="key">←</span><span class="key">↓</span><span class="key">→</span>
     <span class="key wide">SPACE = DASH</span>
+  </div>
+  <div id="nameRow">
+    <input id="nameInput" maxlength="12" placeholder="YOUR NAME" autocomplete="off" spellcheck="false">
   </div>
   <div class="menubtns">
     <button id="startBtn">LOCAL PLAY</button>
@@ -1423,7 +1431,7 @@
       if(port){ let glow='0 3px 8px rgba(0,0,0,.6),inset 0 0 10px rgba(255,255,255,.4)';
         if(b.stasisT>0) glow='0 0 18px #ffd24a,'+glow; else if(b.hasGlass) glow='0 0 12px #ffd24a,'+glow; else if(b.stunT>0) glow='0 0 16px #6fd3ff,'+glow;
         port.style.boxShadow=glow; }
-      if(nm){ let tag=''; if(b.stasisT>0)tag=' ✨'; else if(b.hasTornado)tag=' 🌪️'; else if(b.hasGlass)tag=' ⏳'; else if(b.knockT>0)tag=' 🌀'; else if(b.stunT>0)tag=' 💫'; nm.textContent=b.def.name+(b.human?' (YOU)':'')+tag; }
+      if(nm){ let tag=''; if(b.stasisT>0)tag=' ✨'; else if(b.hasTornado)tag=' 🌪️'; else if(b.hasGlass)tag=' ⏳'; else if(b.knockT>0)tag=' 🌀'; else if(b.stunT>0)tag=' 💫'; nm.textContent=displayName(i)+(isMe(i)?' (YOU)':'')+tag; }
     });
   }
   const SUBBTN='font-size:15px;padding:10px 26px;background:#274b66;color:#cfe9ff;box-shadow:0 4px 0 #16344a,0 8px 16px rgba(0,0,0,.45)';
@@ -1431,7 +1439,7 @@
     return '<div class="results">'+st.map(s=>{ const d=PLAYERS[slots[s.idx].char];
       return `<div class="resrow"><span class="rplace">${s.place}</span>`+
         `<span class="rface" style="background:${d.ui}">${d.emoji}</span>`+
-        `<span class="rname">${d.name}${s.idx===mySeat()?' (YOU)':''}</span>`+
+        `<span class="rname">${esc(displayName(s.idx))}${isMe(s.idx)?' (YOU)':''}</span>`+
         (showGained?`<span class="rgain">+${s.gained}</span>`:'')+
         `<span class="rtot">${s.total} pts</span></div>`;
     }).join('')+'</div>';
@@ -1561,6 +1569,11 @@
   function randCode(){ const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<4;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
   function serializeSlots(){ return slots.map(s=>({char:s.char, type:s.type, name:s.name||''})); }
   function applyServerSlots(ss){ ss.forEach((s,i)=>{ if(!slots[i])slots[i]={}; slots[i].char=s.char; slots[i].type=s.type; slots[i].name=s.name; }); }
+  function myName(){ const el=document.getElementById('nameInput'); const v=el ? el.value.trim().slice(0,12) : ''; try{ if(v) localStorage.setItem('frjdName',v); }catch(e){} return v; }
+  // label shown for a slot: a human's typed name when they set one, otherwise the champion's name
+  function displayName(i){ const s=slots[i]; if(!s) return ''; const champ=(PLAYERS[s.char]||{}).name||''; return (s.type!=='cpu' && s.name && s.name.trim()) ? s.name.trim() : champ; }
+  function isMe(i){ if(NET.mode==='client') return i===NET.mySlot; if(NET.mode==='host') return i===0; return !!(slots[i] && slots[i].type==='local'); }
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function lobbyError(msg){ lobbyMsgEl.style.color='#ff8a6a'; lobbyMsgEl.textContent=String((msg&&msg.message)||msg||'Connection error'); }
   function showLobby(isHost){
     document.getElementById('overlay').classList.add('hidden');
@@ -1585,14 +1598,17 @@
         const next=document.createElement('button'); next.className='cyc'; next.textContent='▶';
         prev.onclick=()=>pickChar(-1); next.onclick=()=>pickChar(1); rowEl.append(prev,face,next); }
       else rowEl.append(face);
-      const name=document.createElement('div'); name.className='slotname'; name.textContent=c.name; name.style.color=c.ui;
+      const isHuman=s.type!=='cpu';
+      const name=document.createElement('div'); name.className='slotname'; name.textContent=displayName(i); name.style.color=c.ui;
       const role=document.createElement('div'); let cls,txt;
       if(s.type==='cpu'){ cls='cpu'; txt='CPU'; }
       else if(mine){ cls='you'; txt= (NET.mode==='host'&&i===0)?'YOU (HOST)':'YOU'; }
       else if(i===0){ cls='host'; txt='HOST'; }
       else { cls='remote'; txt='✓ CONNECTED'; }
       role.className='role '+cls; role.textContent=txt;
-      card.append(num,rowEl,name,role); wrap.appendChild(card);
+      card.append(num,rowEl,name);
+      if(isHuman){ const champ=document.createElement('div'); champ.className='pchamp'; champ.textContent=c.name; card.append(champ); }  // show which champion a named player picked
+      card.append(role); wrap.appendChild(card);
     });
   }
   function pickChar(dir){
@@ -1607,7 +1623,7 @@
     if(!window.Peer){ alert('Networking failed to load (needs internet).'); return; }
     if(!boarReady){ return; }
     NET.mode='host'; NET.code=randCode(); NET.mySlot=0; NET.pending=0; SND.start();
-    slots[0]={char:0,type:'local',name:'P1'}; slots[1]={char:1,type:'cpu'}; slots[2]={char:2,type:'cpu'}; slots[3]={char:3,type:'cpu'};
+    slots[0]={char:0,type:'local',name:myName()}; slots[1]={char:1,type:'cpu'}; slots[2]={char:2,type:'cpu'}; slots[3]={char:3,type:'cpu'};
     NET.peer=new Peer('frjd-'+NET.code, PEER_OPTS);
     NET.peer.on('open',()=>showLobby(true));
     NET.peer.on('connection',conn=>setupHostConn(conn));
@@ -1663,6 +1679,7 @@
     conn._seen=performance.now();
     const i=slots.findIndex(s=>s.conn===conn); if(i<0) return;
     if(d.t==='pick'){ slots[i].char=((d.char%PLAYERS.length)+PLAYERS.length)%PLAYERS.length; broadcastLobby(); renderLobby(); }
+    else if(d.t==='name'){ slots[i].name=String(d.name||'').slice(0,12); broadcastLobby(); renderLobby(); }
     else if(d.t==='input'){ slots[i].input=d; }
   }
   // ---- client ----
@@ -1702,7 +1719,9 @@
   function onClientData(d){
     NET.lastHostMsg=performance.now();
     if(d.t==='hb') return;
-    if(d.t==='welcome'){ NET.mySlot=d.slot; applyServerSlots(d.slots); lobbyMsgEl.style.color=''; lobbyMsgEl.textContent='Pick your champion, then wait for the host.'; renderLobby(); }
+    if(d.t==='welcome'){ NET.mySlot=d.slot; applyServerSlots(d.slots);
+      const nm=myName(); if(nm){ slots[NET.mySlot].name=nm; try{ NET.hostConn.send({t:'name', name:nm}); }catch(e){} }  // tell the host what to call me
+      lobbyMsgEl.style.color=''; lobbyMsgEl.textContent='Pick your champion, then wait for the host.'; renderLobby(); }
     else if(d.t==='lobby'){ applyServerSlots(d.slots); renderLobby(); }
     else if(d.t==='full'){ NET.kicked=true; clearInterval(NET.checkTimer); lobbyError('Room is full.'); }
     else if(d.t==='busy'){ NET.kicked=true; clearInterval(NET.checkTimer); lobbyError('A match is already in progress — try again when it ends.'); }
@@ -1722,6 +1741,7 @@
     lobbyEl.classList.add('hidden'); document.getElementById('overlay').classList.remove('hidden');
   }
   // ---- wire the menu ----
+  try{ const sv=localStorage.getItem('frjdName'); const el=document.getElementById('nameInput'); if(sv&&el) el.value=sv; }catch(e){}  // remember the name across sessions
   document.getElementById('hostBtn').onclick=()=>hostOnline();
   document.getElementById('joinBtn').onclick=()=>{ const r=document.getElementById('joinRow'); r.classList.toggle('hidden'); if(!r.classList.contains('hidden')) document.getElementById('codeInput').focus(); };
   document.getElementById('connectBtn').onclick=()=>{ const code=document.getElementById('codeInput').value.trim().toUpperCase(); if(code.length>=3) joinOnline(code); };
