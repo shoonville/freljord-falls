@@ -1533,20 +1533,17 @@
 
   // ============ ONLINE MULTIPLAYER (PeerJS, host-authoritative) — Stage 1: connection + lobby ============
   const NET={ mode:'off', peer:null, conns:[], hostConn:null, code:null, mySlot:0, opened:false, kicked:false };
-  // WebRTC ICE servers. STUN discovers your public address; a TURN relay is REQUIRED whenever both
-  // players sit behind restrictive NATs (mobile data, CGNAT, locked-down routers) — without one the
-  // peer-to-peer channel silently never opens and the joiner times out as "Disconnected".
-  // These public relays are best-effort and rate-limited. For reliable play, sign up for a free
-  // TURN account (e.g. https://dashboard.metered.ca → Open Relay, 50GB/mo free) and paste your own
-  // {urls,username,credential} entries below.
+  // WebRTC ICE servers. STUN (below) is free and needs no signup — it lets players on ordinary home
+  // WiFi punch through their routers and connect directly. STUN is NOT enough for players on mobile
+  // data, work/school WiFi, or ISPs using CGNAT/symmetric NAT — those need a TURN relay, which costs
+  // bandwidth and so has no reliable free no-signup option. For any-network play, grab free TURN
+  // creds (Cloudflare Realtime or metered.ca, ~5 min) and add a line like:
+  //   { urls:'turn:HOST:3478', username:'USER', credential:'PASS' },
   const ICE_SERVERS=[
     { urls:'stun:stun.l.google.com:19302' },
     { urls:'stun:stun1.l.google.com:19302' },
-    { urls:'turn:eu-0.turn.peerjs.com:3478', username:'peerjs', credential:'peerjsp' },
-    { urls:'turn:us-0.turn.peerjs.com:3478', username:'peerjs', credential:'peerjsp' },
-    { urls:'turn:openrelay.metered.ca:80',                 username:'openrelayproject', credential:'openrelayproject' },
-    { urls:'turn:openrelay.metered.ca:443',                username:'openrelayproject', credential:'openrelayproject' },
-    { urls:'turn:openrelay.metered.ca:443?transport=tcp',  username:'openrelayproject', credential:'openrelayproject' },
+    { urls:'stun:stun2.l.google.com:19302' },
+    { urls:'stun:stun.cloudflare.com:3478' },
   ];
   const PEER_OPTS={ config:{ iceServers:ICE_SERVERS } };
   function peerErrMsg(e){
@@ -1666,7 +1663,7 @@
     if(NET.mode!=='client' || NET.kicked) return;
     const now=performance.now();
     if(!NET.opened){                                   // channel still being established — give it room
-      if(now-NET.joinedAt>20000) hostGone('Couldn’t reach the host. Your network may be blocking the peer-to-peer connection — try again, or have someone on a different network host the room.');
+      if(now-NET.joinedAt>20000) hostGone('Couldn’t reach the host. This usually means the HOST is on a network that blocks direct connections — mobile data, work/school WiFi, or some home ISPs. Best fixes: have a different person host (plain home WiFi works best), or have everyone join from the same WiFi. For any-network play, add a TURN relay in the code.');
     } else if(now-NET.lastHostMsg>5000) hostGone('Lost connection to the host.');
   }
   function hostGone(msg){
