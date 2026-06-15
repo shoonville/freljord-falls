@@ -68,6 +68,19 @@
   .role.remote{background:#2e6b46;color:#dfffe9}
   .role.open{background:#21364a;color:#8fb0c8}
   .role.cpu{background:#274b66;color:#bcdcf0}
+  /* round counter + per-player points in the HUD */
+  .roundlbl{font-size:14px;letter-spacing:2px;color:#9fd0ee;line-height:1;margin-bottom:2px}
+  .ppts{font-size:12px;font-weight:bold;letter-spacing:1px;color:#ffd24a;margin-top:2px;text-shadow:0 1px 2px #000}
+  /* round-result / final standings */
+  .results{display:flex;flex-direction:column;gap:8px;margin:16px 0 6px}
+  .resrow{display:flex;align-items:center;gap:12px;background:rgba(10,32,54,.7);border:2px solid #2f6a96;
+    border-radius:10px;padding:8px 14px;min-width:360px;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+  .rplace{font-size:22px;font-weight:bold;color:#ffd24a;width:30px;text-align:center}
+  .rface{width:36px;height:36px;border-radius:9px;border:2px solid #fff;display:flex;align-items:center;
+    justify-content:center;font-size:19px;flex:none}
+  .rname{flex:1;text-align:left;font-weight:bold;letter-spacing:1px;color:#eaf6ff}
+  .rgain{color:#7dff5a;font-weight:bold;min-width:48px;text-align:right}
+  .rtot{color:#cfe9ff;font-weight:bold;min-width:70px;text-align:right}
   #charselect .tag{font-size:13px;letter-spacing:4px;color:#8fc8ea;margin-bottom:6px}
   #slots{display:flex;gap:16px;margin:20px 0 8px;flex-wrap:wrap;justify-content:center}
   .slot{width:148px;background:rgba(10,32,54,.72);border:2px solid #2f6a96;border-radius:14px;padding:12px 10px;
@@ -101,8 +114,8 @@
     z-index:20;color:#8fb8d6;font-size:18px;letter-spacing:2px}
   #boltCd{position:fixed;transform:translate(-50%,-100%);z-index:6;font-size:26px;font-weight:bold;
     color:#fff14a;text-shadow:0 0 10px #ff9000,0 0 4px #fff,0 2px 3px #000;pointer-events:none;display:none}
-  #anvilCd{position:fixed;transform:translate(-50%,-100%);z-index:6;font-size:26px;font-weight:bold;
-    color:#ff5a4a;text-shadow:0 0 10px #000,0 0 5px #c9ccd2,0 2px 3px #000;pointer-events:none;display:none}
+  #anvilCd{position:fixed;transform:translate(-50%,-100%);z-index:6;font-size:28px;font-weight:bold;
+    color:#ff2323;text-shadow:0 0 10px #ff0000,0 0 4px #000,0 2px 3px #000;pointer-events:none;display:none}
   #countdown{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:12;
     pointer-events:none;font-family:"Trebuchet MS",sans-serif;font-weight:bold;color:#ff9d2e;
     font-size:clamp(96px,24vw,300px);line-height:1;
@@ -186,7 +199,7 @@
   const NSEG  = 20;       // breakable rim segments
   const STEP  = Math.PI*2/NSEG;
 
-  const DASH_CD=1.25, DASH_TIME=0.22, DASH_IMP=17, DASH_DMG=11, DASH_BONUS=7;
+  const DASH_CD=1.25, DASH_TIME=0.22, DASH_IMP=17, DASH_DMG=11, DASH_BONUS=15;
   const GROW_T=3, GROW_SCALE=1.7, SHRINK_T=5, SHRINK_SCALE=0.6, STUN_T=1, STUN_R=4.6;
 
   const PLAYERS = [
@@ -318,7 +331,7 @@
   })();
 
   // ============ BACKGROUND MUSIC (official YouTube embed of the requested track) ============
-  const YT_ID='fBrVO77A_bQ';
+  const YT_ID='4a6yEM49Ldk';
   let ytPlayer=null, ytReady=false, ytPendingPlay=false, uiMuted=false;
   window.onYouTubeIframeAPIReady=function(){
     ytPlayer=new YT.Player('ytbgm',{
@@ -754,11 +767,14 @@
   }
   function makeBoltMesh(col){
     const g=new TH.Group();
-    const mat=new TH.MeshStandardMaterial({color:col, emissive:col, emissiveIntensity:1.0, roughness:0.3});
-    const a=new TH.Mesh(new TH.BoxGeometry(0.16,0.36,0.08),mat); a.position.set(0.07,0.30,0); a.rotation.z=0.6; g.add(a);
-    const b=new TH.Mesh(new TH.BoxGeometry(0.16,0.36,0.08),mat); b.position.set(-0.07,0.0,0); b.rotation.z=-0.6; g.add(b);
-    const c=new TH.Mesh(new TH.BoxGeometry(0.16,0.36,0.08),mat); c.position.set(0.03,-0.30,0); c.rotation.z=0.6; g.add(c);
-    return g;
+    const s=new TH.Shape();                       // one clean lightning-bolt outline
+    s.moveTo(0.10,0.50); s.lineTo(-0.28,0.06); s.lineTo(-0.04,0.06);
+    s.lineTo(-0.18,-0.50); s.lineTo(0.28,-0.04); s.lineTo(0.04,-0.04); s.lineTo(0.24,0.50);
+    s.closePath();
+    const geo=new TH.ExtrudeGeometry(s,{depth:0.12, bevelEnabled:true, bevelThickness:0.03, bevelSize:0.025, bevelSegments:1});
+    geo.center();
+    const m=new TH.Mesh(geo, new TH.MeshStandardMaterial({color:col, emissive:col, emissiveIntensity:1.0, roughness:0.3, metalness:0.1}));
+    g.add(m); return g;
   }
   const LIVE_TIME=6;
   let boltHolder=null, boltTimer=0, boltGrace=0;
@@ -784,7 +800,7 @@
   const boltCdEl=document.getElementById('boltCd');
   function updateBoltCd(){
     if(boltHolder && state==='playing'){
-      const v=new TH.Vector3(boltHolder.x,3.1,boltHolder.z); v.project(camera);
+      const v=new TH.Vector3(boltHolder.x,4.3,boltHolder.z); v.project(camera);
       if(v.z<1){ boltCdEl.style.display='block';
         boltCdEl.style.left=((v.x*0.5+0.5)*innerWidth)+'px';
         boltCdEl.style.top=((-v.y*0.5+0.5)*innerHeight)+'px';
@@ -827,7 +843,7 @@
       if(v.z<1){ anvilCdEl.style.display='block';
         anvilCdEl.style.left=((v.x*0.5+0.5)*innerWidth)+'px';
         anvilCdEl.style.top=((-v.y*0.5+0.5)*innerHeight)+'px';
-        anvilCdEl.textContent='⚒'+Math.max(0,Math.ceil(anvilTimer)); }
+        anvilCdEl.textContent='💀'+Math.max(0,Math.ceil(anvilTimer)); }
       else anvilCdEl.style.display='none';
     } else anvilCdEl.style.display='none';
   }
@@ -1023,12 +1039,21 @@
 
   // ============ STATE ============
   let bears=[], state='menu', elapsed=0, timeLeft=MATCH, winnerText='';
+  // ---- 3-round match scoring ----
+  const TOTAL_ROUNDS=3, PLACE_PTS=[100,75,50,25];
+  let round=1, points=[0,0,0,0], elimOrder=[];
+  function eliminate(b){                       // out for good — no respawn
+    if(!b || !b.alive) return;
+    b.alive=false; b.falling=false; b.group.visible=false;
+    if(elimOrder.indexOf(b.idx)<0) elimOrder.push(b.idx);
+  }
+  function mySeat(){ return NET.mode==='client'?NET.mySlot : NET.mode==='host'?0 : -1; }
 
   function spawn(){
     bears=slots.map((s,i)=>{
       const p=PLAYERS[s.char];
       const built=createBear(p,s.char); scene.add(built.group);   // s.char selects this slot's rider model
-      const a=(i/slots.length)*Math.PI*2+Math.PI/4, r=(R_CORE+R_OUT)/2;
+      const a=(i/slots.length)*Math.PI*2+Math.PI/4, r=R_OUT*0.82;   // out toward the 4 corners
       return {...built, def:p, idx:i, human:s.type!=='cpu', remote:s.type==='remote',
         x:Math.cos(a)*r, z:Math.sin(a)*r, vx:0,vz:0, heading:a+Math.PI,
         stamina:100, lives:3, alive:true, falling:false, sink:0, phase:Math.random()*6, bump:0,
@@ -1044,7 +1069,11 @@
       s.lipMat.color.set(0xf6fbff); s.lipMat.emissive=new TH.Color(0x000000);
       s.rocks.forEach((r,k)=>r.material.color.set(rockColors[k%2])); });
   }
-  function startGame(){
+  function startMatch(){                       // begin a fresh 3-round series
+    round=1; points=[0,0,0,0];
+    startRound();
+  }
+  function startRound(){
     if(!boarReady) return;
     bears.forEach(b=>scene.remove(b.group));
     pups.forEach(p=>scene.remove(p.m)); pups.length=0;
@@ -1055,7 +1084,7 @@
     anvilHolder=null; anvilTimer=0; anvilGrace=0; liveAnvil.visible=false;
     crushers.forEach(c=>scene.remove(c.m)); crushers.length=0;
     resetArena();
-    elapsed=0; timeLeft=MATCH; dropT=4; state='countdown';
+    elapsed=0; timeLeft=MATCH; dropT=4; state='countdown'; elimOrder=[];
     spawn();
     SND.start();
     document.getElementById('overlay').classList.add('hidden');
@@ -1155,7 +1184,7 @@
       else {
         if(boltGrace>0) boltGrace-=dt;
         boltTimer-=dt;
-        liveBolt.position.set(boltHolder.x, 2.6*(boltHolder.size||1), boltHolder.z);
+        liveBolt.position.set(boltHolder.x, 3.5*(boltHolder.size||1), boltHolder.z);
         liveBolt.rotation.y += dt*5;
         if(boltTimer<=0) detonateBolt();
       }
@@ -1186,7 +1215,7 @@
           burst(c.m.position.x,1.0,c.m.position.z,sparkMat,22,7,4); SND.sfx('hit');
         } else {
           burst(c.m.position.x,0.6,c.m.position.z,splashMat,34,8,5);
-          if(v && v.alive){ v.lives=0; v.alive=false; v.group.visible=false; }
+          eliminate(v);
           SND.sfx('break');
         }
       }
@@ -1222,11 +1251,7 @@
 
       if(b.falling){
         b.sink+=dt*1.4; b.group.position.set(b.x,-b.sink*2.2,b.z); b.group.rotation.x=b.sink*0.6;
-        if(b.sink>1){
-          b.lives-=1; b.falling=false; b.sink=0; b.group.rotation.x=0;
-          if(b.lives<=0){ b.lives=0; b.alive=false; b.group.visible=false; burst(b.x,1,b.z,splashMat,18,5,4); }
-          else { const a=Math.random()*6.28,r=Math.random()*3; b.x=Math.cos(a)*r; b.z=Math.sin(a)*r; b.vx=b.vz=0; b.group.visible=true; b.group.position.set(b.x,0,b.z);}
-        }
+        if(b.sink>1.3){ b.group.rotation.x=0; burst(b.x,1,b.z,splashMat,18,5,4); eliminate(b); }  // into the sea — out for good
         continue;
       }
 
@@ -1295,7 +1320,7 @@
           if(vn>0){ b.vx-=1.6*vn*nx; b.vz-=1.6*vn*nz; if(vn>3) damageSeg(idx, nx*R_OUT, nz*R_OUT); }
         }
       } else {                              // edge broken here -> no wall, slide off & fall
-        if(d>R_OUT){ b.falling=true; b.sink=0; burst(b.x,0.4,b.z,splashMat,16,4,3.5); SND.sfx('fall'); }
+        if(d>R_OUT+0.7){ b.falling=true; b.sink=0; burst(b.x,0.4,b.z,splashMat,16,4,3.5); SND.sfx('fall'); }  // grace: can hang over the lip
       }
     }
 
@@ -1308,12 +1333,19 @@
       const rr=a.r+c.r;
       if(d<rr){
         const nx=dx/d,nz=dz/d,ov=rr-d;
-        const aImm=a.growT>0, cImm=c.growT>0;   // grown bears can't be bumped
-        if(aImm&&!cImm){ c.x+=nx*ov; c.z+=nz*ov; }
-        else if(cImm&&!aImm){ a.x-=nx*ov; a.z-=nz*ov; }
+        const aImm=a.growT>0, cImm=c.growT>0;
+        const aD=a.dashT>0, cD=c.dashT>0;
+        const aWin=(aD&&!cD)||(aImm&&!cImm);    // a dashes (or is grown) into c -> a holds ground, c gets shoved
+        const cWin=(cD&&!aD)||(cImm&&!aImm);
+        if(aWin){ c.x+=nx*ov; c.z+=nz*ov; }
+        else if(cWin){ a.x-=nx*ov; a.z-=nz*ov; }
         else { a.x-=nx*ov/2; a.z-=nz*ov/2; c.x+=nx*ov/2; c.z+=nz*ov/2; }
         const vn=(c.vx-a.vx)*nx+(c.vz-a.vz)*nz;
-        if(vn<0){ const imp=-vn*1.3; if(!aImm){a.vx-=nx*imp;a.vz-=nz*imp;} if(!cImm){c.vx+=nx*imp;c.vz+=nz*imp;} a.bump=1;c.bump=1; }
+        if(vn<0){ const imp=-vn*1.3;
+          if(aWin){ c.vx+=nx*imp; c.vz+=nz*imp; a.vx=0; a.vz=0; }   // dasher stops dead at the hit, victim is launched
+          else if(cWin){ a.vx-=nx*imp; a.vz-=nz*imp; c.vx=0; c.vz=0; }
+          else { a.vx-=nx*imp; a.vz-=nz*imp; c.vx+=nx*imp; c.vz+=nz*imp; }
+          a.bump=1; c.bump=1; }
         // hit the live-bolt holder to steal it
         if(boltHolder && boltGrace<=0){
           if(a===boltHolder && c!==boltHolder){ boltHolder=c; boltGrace=0.7; SND.sfx('hit'); }
@@ -1324,7 +1356,7 @@
           if(a===anvilHolder && c!==anvilHolder){ anvilHolder=c; anvilGrace=0.7; SND.sfx('hit'); }
           else if(c===anvilHolder && a!==anvilHolder){ anvilHolder=a; anvilGrace=0.7; SND.sfx('hit'); }
         }
-        const aD=a.dashT>0, cD=c.dashT>0, mid={x:(a.x+c.x)/2,z:(a.z+c.z)/2};
+        const mid={x:(a.x+c.x)/2,z:(a.z+c.z)/2};
         if(aD&&!cD){ if(!cImm){ c.vx+=nx*DASH_BONUS;c.vz+=nz*DASH_BONUS; } burst(mid.x,1,mid.z,sparkMat,12,5,3); SND.sfx('hit');}
         else if(cD&&!aD){ if(!aImm){ a.vx-=nx*DASH_BONUS;a.vz-=nz*DASH_BONUS; } burst(mid.x,1,mid.z,sparkMat,12,5,3); SND.sfx('hit');}
         else if(aD&&cD){ burst(mid.x,1,mid.z,sparkMat,10,5,3); SND.sfx('hit');}
@@ -1346,22 +1378,9 @@
       b.group.scale.set(size/Math.sqrt(sq), size*sq, size*st/Math.sqrt(sq));
     }
 
-    // win check
+    // round end — last cub afloat (or time up)
     const live=bears.filter(b=>b.alive);
-    if(live.length<=1 || timeLeft<=0){
-      state='over';
-      const score=b=>b.lives*1000+b.stamina;   // more lives wins; stamina breaks ties
-      let win = live.length===1?live[0] : live.length===0?null : live.reduce((a,b)=>score(b)>score(a)?b:a);
-      const widx = win?bears.indexOf(win):-1, wname = win?win.def.name:'';
-      if(NET.mode==='host'){
-        winnerText = widx===0?'YOU WIN!' : (win?wname+' WINS':'WIPEOUT!');
-        NET.conns.forEach(c=>{ try{c.send({t:'over', idx:widx, name:wname});}catch(e){} });
-      } else {
-        winnerText = !win?'WIPEOUT!' : (win.human?'YOU WIN!':wname+' WINS');
-      }
-      SND.sfx('win');
-      showOver();
-    }
+    if(live.length<=1 || timeLeft<=0) endRound();
     updateHUD();
   }
   function hurt(b,dmg){ b.health-=dmg; if(b.health<=0){ b.health=0; b.alive=false; b.group.visible=false; burst(b.x,1,b.z,b.def?sparkMat:splashMat,16,5,4);} }
@@ -1378,12 +1397,14 @@
         <div class="portrait" id="port${i}" style="background:${b.def.ui}">${b.def.emoji}</div>
         <span class="arrow">▲</span>
         <div class="barwrap"><div class="bar" id="bar${i}"></div></div>
-      </div><div class="pname" id="nm${i}">${b.def.name}${b.human?' (YOU)':''}</div>`; });
+      </div><div class="pname" id="nm${i}">${b.def.name}${b.human?' (YOU)':''}</div>
+      <div class="ppts" id="pts${i}">0 pts</div>`; });
   }
   function updateHUD(){
     const t=Math.ceil(timeLeft);
-    document.getElementById('timer').textContent=Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
+    document.getElementById('timer').innerHTML=`<div class="roundlbl">ROUND ${round}/${TOTAL_ROUNDS}</div>`+Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
     bears.forEach((b,i)=>{
+      const pts=document.getElementById('pts'+i); if(pts) pts.textContent=(points[i]||0)+' pts';
       const card=document.getElementById('card'+i), bar=document.getElementById('bar'+i),
             port=document.getElementById('port'+i), nm=document.getElementById('nm'+i);
       if(bar) bar.style.width=Math.max(0,b.stamina)+'%';
@@ -1394,19 +1415,60 @@
       if(nm){ let tag=''; if(b.stasisT>0)tag=' ✨'; else if(b.hasTornado)tag=' 🌪️'; else if(b.hasGlass)tag=' ⏳'; else if(b.knockT>0)tag=' 🌀'; else if(b.stunT>0)tag=' 💫'; nm.textContent=b.def.name+(b.human?' (YOU)':'')+tag; }
     });
   }
-  function showOver(){
+  const SUBBTN='font-size:15px;padding:10px 26px;background:#274b66;color:#cfe9ff;box-shadow:0 4px 0 #16344a,0 8px 16px rgba(0,0,0,.45)';
+  function standingsHTML(st, showGained){
+    return '<div class="results">'+st.map(s=>{ const d=PLAYERS[slots[s.idx].char];
+      return `<div class="resrow"><span class="rplace">${s.place}</span>`+
+        `<span class="rface" style="background:${d.ui}">${d.emoji}</span>`+
+        `<span class="rname">${d.name}${s.idx===mySeat()?' (YOU)':''}</span>`+
+        (showGained?`<span class="rgain">+${s.gained}</span>`:'')+
+        `<span class="rtot">${s.total} pts</span></div>`;
+    }).join('')+'</div>';
+  }
+  function endRound(){
+    state='roundover';
+    const alive=bears.filter(b=>b.alive).sort((a,b)=>b.stamina-a.stamina);   // survivors ranked by stamina
+    const elim=elimOrder.slice().reverse().map(i=>bears[i]).filter(Boolean);  // last out = higher place
+    const order=[...alive,...elim]; bears.forEach(b=>{ if(order.indexOf(b)<0) order.push(b); });
+    order.forEach((b,rank)=>{ points[b.idx]+=(PLACE_PTS[rank]||0); });
+    const rs=order.map((b,rank)=>({idx:b.idx, place:rank+1, gained:PLACE_PTS[rank]||0, total:points[b.idx]}));
+    const isFinal=round>=TOTAL_ROUNDS;
+    SND.sfx(isFinal?'win':'go');
+    if(isFinal){
+      const fin=bears.map(b=>({idx:b.idx,total:points[b.idx]})).sort((a,b)=>b.total-a.total)
+        .map((t,rank)=>({idx:t.idx, place:rank+1, gained:0, total:t.total}));
+      if(NET.mode==='host') NET.conns.forEach(c=>{ try{c.send({t:'matchover', standings:fin});}catch(e){} });
+      showFinal(fin);
+    } else {
+      if(NET.mode==='host') NET.conns.forEach(c=>{ try{c.send({t:'roundover', standings:rs, round});}catch(e){} });
+      showRoundResult(rs);
+    }
+  }
+  function showRoundResult(st){
     document.getElementById('topbar').classList.add('hidden');
     const ov=document.getElementById('overlay'); ov.classList.remove('hidden');
-    ov.innerHTML=`<h1>${winnerText}</h1><div class="tag">❄ FRELJORD FALLS ❄</div>
-      <p>${winnerText.startsWith('YOU')?'You stayed afloat and broke the floe out from under everyone else. Champion!':'The sea claimed you. Dash rivals into the cracking rim and stay off the gaps.'}</p>
-      <button id="againBtn">REMATCH</button>
-      <button id="charBtn" style="font-size:15px;padding:10px 26px;background:#274b66;color:#cfe9ff;box-shadow:0 4px 0 #16344a,0 8px 16px rgba(0,0,0,.45)">${NET.mode==='host'?'BACK TO LOBBY':'CHARACTER SELECT'}</button>
-      <div class="small">Tip: the rim breaks after two hits — shove rivals into it, then dash them through the gap</div>`;
-    document.getElementById('againBtn').onclick=()=>{
-      if(NET.mode==='host'){ NET.conns.forEach(c=>{ try{c.send({t:'start', slots:serializeSlots()});}catch(e){} }); }
-      startGame();
-    };
-    document.getElementById('charBtn').onclick=()=>{ if(NET.mode==='host') showLobby(true); else showCharSelect(); };
+    const ctrl = NET.mode!=='client';
+    ov.innerHTML=`<h1>Round ${round} of ${TOTAL_ROUNDS}</h1><div class="tag">❄ STANDINGS ❄</div>`
+      + standingsHTML(st,true)
+      + (ctrl?`<button id="nextBtn">NEXT ROUND</button>`:`<div class="small">Waiting for the host to start round ${round+1}…</div>`);
+    if(ctrl) document.getElementById('nextBtn').onclick=()=>{ round++;
+      if(NET.mode==='host') NET.conns.forEach(c=>{ try{c.send({t:'start', slots:serializeSlots()});}catch(e){} });
+      startRound(); };
+  }
+  function showFinal(st){
+    document.getElementById('topbar').classList.add('hidden');
+    const ov=document.getElementById('overlay'); ov.classList.remove('hidden');
+    const champ=st[0]?PLAYERS[slots[st[0].idx].char]:null;
+    const title = st[0]&&st[0].idx===mySeat()?'YOU WIN!' : (champ?champ.name+' WINS!':'MATCH OVER');
+    const ctrl = NET.mode!=='client';
+    ov.innerHTML=`<h1>${title}</h1><div class="tag">❄ FINAL · ${TOTAL_ROUNDS} ROUNDS ❄</div>`
+      + standingsHTML(st,false)
+      + (ctrl?`<button id="againBtn">PLAY AGAIN</button><button id="charBtn" style="${SUBBTN}">${NET.mode==='host'?'BACK TO LOBBY':'CHARACTER SELECT'}</button>`
+            :`<div class="small">Waiting for the host…</div>`);
+    if(ctrl){
+      document.getElementById('againBtn').onclick=()=>{ if(NET.mode==='host') NET.conns.forEach(c=>{ try{c.send({t:'start', slots:serializeSlots()});}catch(e){} }); startMatch(); };
+      document.getElementById('charBtn').onclick=()=>{ if(NET.mode==='host') showLobby(true); else showCharSelect(); };
+    }
   }
 
   // ============ LOOP ============
@@ -1456,7 +1518,7 @@
     buildCharSelect();
   }
   document.getElementById('startBtn').onclick=()=>{ if(boarReady) showCharSelect(); };
-  document.getElementById('playBtn').onclick=()=>{ if(boarReady){ charSelEl.classList.add('hidden'); startGame(); } };
+  document.getElementById('playBtn').onclick=()=>{ if(boarReady){ charSelEl.classList.add('hidden'); startMatch(); } };
 
   // ============ ONLINE MULTIPLAYER (PeerJS, host-authoritative) — Stage 1: connection + lobby ============
   const NET={ mode:'off', peer:null, conns:[], hostConn:null, code:null, mySlot:0 };
@@ -1591,7 +1653,8 @@
     else if(d.t==='start'){ applyServerSlots(d.slots); clientStart(); }
     else if(d.t==='cd'){ showCountdown(d.n); if(d.n==='GO!'){ SND.sfx('go'); startBGM(); } else if(d.n) SND.sfx('count'); }
     else if(d.t==='snap'){ applySnap(d); }
-    else if(d.t==='over'){ clientShowOver(d.idx===NET.mySlot?'YOU WIN!':(d.name?d.name+' WINS':'WIPEOUT!')); }
+    else if(d.t==='roundover'){ round=d.round; showRoundResult(d.standings); }
+    else if(d.t==='matchover'){ showFinal(d.standings); }
   }
   function leaveLobby(){
     clearInterval(NET.hbTimer); clearInterval(NET.checkTimer);
@@ -1607,7 +1670,7 @@
   document.getElementById('joinBtn').onclick=()=>{ const r=document.getElementById('joinRow'); r.classList.toggle('hidden'); if(!r.classList.contains('hidden')) document.getElementById('codeInput').focus(); };
   document.getElementById('connectBtn').onclick=()=>{ const code=document.getElementById('codeInput').value.trim().toUpperCase(); if(code.length>=3) joinOnline(code); };
   document.getElementById('codeInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); document.getElementById('connectBtn').click(); } });
-  lobbyStartBtn.onclick=()=>{ if(NET.mode==='host'){ NET.conns.forEach(c=>{ try{c.send({t:'start', slots:serializeSlots()});}catch(e){} }); lobbyEl.classList.add('hidden'); startGame(); } };
+  lobbyStartBtn.onclick=()=>{ if(NET.mode==='host'){ NET.conns.forEach(c=>{ try{c.send({t:'start', slots:serializeSlots()});}catch(e){} }); lobbyEl.classList.add('hidden'); startMatch(); } };
   document.getElementById('lobbyBackBtn').onclick=()=>leaveLobby();
   roomCodeEl.style.cursor='pointer'; roomCodeEl.title='Click to copy';
   roomCodeEl.onclick=()=>{ if(!NET.code) return; try{ navigator.clipboard.writeText(NET.code); }catch(e){}
@@ -1617,13 +1680,13 @@
   const R2=x=>Math.round(x*100)/100;
   let netAcc=0;
   function netHostTick(dt){
-    if(NET.mode!=='host' || !NET.conns.length || state==='menu') return;
+    if(NET.mode!=='host' || !NET.conns.length || (state!=='playing'&&state!=='countdown')) return;
     netAcc+=dt; if(netAcc<0.05) return; netAcc=0;          // ~20 snapshots/sec
     const snap=buildSnapshot();
     NET.conns.forEach(c=>{ try{c.send(snap);}catch(e){} });
   }
   function buildSnapshot(){
-    return { t:'snap', st:state, tl:Math.round(timeLeft*10)/10,
+    return { t:'snap', st:state, tl:Math.round(timeLeft*10)/10, rd:round,
       bears: bears.map(b=>[R2(b.group.position.x),R2(b.group.position.y),R2(b.group.position.z),R2(b.group.rotation.y),R2(b.size||1),
         b.alive?1:0, b.stasisT>0?1:0, Math.round(b.stamina), b.lives, b.hasGlass?1:0, b.hasTornado?1:0, b.stunT>0?1:0, b.knockT>0?1:0]),
       pups: pups.map(p=>[p.id, p.def.type, R2(p.m.position.x), R2(p.m.position.y), R2(p.m.position.z), R2(p.m.rotation.y)]),
@@ -1675,7 +1738,7 @@
   }
   function applySnap(s){
     if(!bears.length) return;
-    state=s.st; timeLeft=s.tl;
+    state=s.st; timeLeft=s.tl; if(s.rd!==undefined) round=s.rd;
     s.bears.forEach((bd,i)=>{ const b=bears[i]; if(!b) return;
       b._tx=bd[0]; b._ty=bd[1]; b._tz=bd[2]; b._try=bd[3]; b._ts=bd[4];
       b.x=bd[0]; b.z=bd[2];
@@ -1696,7 +1759,7 @@
       g.position.x+=(b._tx-g.position.x)*k; g.position.y+=(b._ty-g.position.y)*k; g.position.z+=(b._tz-g.position.z)*k;
       let d=b._try-g.rotation.y; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; g.rotation.y+=d*k;
       const sc=b._ts||1; g.scale.x+=(sc-g.scale.x)*k; g.scale.y+=(sc-g.scale.y)*k; g.scale.z+=(sc-g.scale.z)*k; }
-    if(boltHolder){ liveBolt.position.set(boltHolder.group.position.x,2.6,boltHolder.group.position.z); liveBolt.rotation.y+=dt*5; }
+    if(boltHolder){ liveBolt.position.set(boltHolder.group.position.x,3.5,boltHolder.group.position.z); liveBolt.rotation.y+=dt*5; }
     if(anvilHolder){ liveAnvil.position.set(anvilHolder.group.position.x,3.0,anvilHolder.group.position.z); liveAnvil.rotation.y+=dt*1.3; }
     cTorn.forEach(tm=>{ if(tm.visible) tm.rotation.y+=dt*16; });
     cInputAcc+=dt; if(cInputAcc>=0.033){ cInputAcc=0; sendClientInput(); }
