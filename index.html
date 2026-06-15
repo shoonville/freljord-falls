@@ -1544,7 +1544,7 @@
   // TURN relay endpoint: paste your deployed Cloudflare Worker URL here (see cloudflare-turn-worker.js).
   // It hands out short-lived Cloudflare TURN credentials so play works on ANY network (hotel WiFi,
   // mobile data, CGNAT). Leave '' to fall back to STUN-only (direct connections only).
-  const TURN_ENDPOINT='';
+  const TURN_ENDPOINT='https://freljord-turn.pirzadehsean.workers.dev/';
   // STUN-only fallback — free, no signup, but only connects players on friendly home networks.
   const ICE_SERVERS=[
     { urls:'stun:stun.l.google.com:19302' },
