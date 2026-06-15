@@ -1532,7 +1532,7 @@
   document.getElementById('playBtn').onclick=()=>{ if(boarReady){ charSelEl.classList.add('hidden'); startMatch(); } };
 
   // ============ ONLINE MULTIPLAYER (PeerJS, host-authoritative) — Stage 1: connection + lobby ============
-  const NET={ mode:'off', peer:null, conns:[], hostConn:null, code:null, mySlot:0, opened:false, kicked:false };
+  const NET={ mode:'off', peer:null, conns:[], hostConn:null, code:null, mySlot:0, opened:false, kicked:false, pending:0 };
   // WebRTC ICE servers. STUN (below) is free and needs no signup — it lets players on ordinary home
   // WiFi punch through their routers and connect directly. STUN is NOT enough for players on mobile
   // data, work/school WiFi, or ISPs using CGNAT/symmetric NAT — those need a TURN relay, which costs
@@ -1590,7 +1590,7 @@
       if(s.type==='cpu'){ cls='cpu'; txt='CPU'; }
       else if(mine){ cls='you'; txt= (NET.mode==='host'&&i===0)?'YOU (HOST)':'YOU'; }
       else if(i===0){ cls='host'; txt='HOST'; }
-      else { cls='remote'; txt='PLAYER'; }
+      else { cls='remote'; txt='✓ CONNECTED'; }
       role.className='role '+cls; role.textContent=txt;
       card.append(num,rowEl,name,role); wrap.appendChild(card);
     });
@@ -1606,7 +1606,7 @@
   function hostOnline(){
     if(!window.Peer){ alert('Networking failed to load (needs internet).'); return; }
     if(!boarReady){ return; }
-    NET.mode='host'; NET.code=randCode(); NET.mySlot=0; SND.start();
+    NET.mode='host'; NET.code=randCode(); NET.mySlot=0; NET.pending=0; SND.start();
     slots[0]={char:0,type:'local',name:'P1'}; slots[1]={char:1,type:'cpu'}; slots[2]={char:2,type:'cpu'}; slots[3]={char:3,type:'cpu'};
     NET.peer=new Peer('frjd-'+NET.code, PEER_OPTS);
     NET.peer.on('open',()=>showLobby(true));
@@ -1614,20 +1614,36 @@
     NET.peer.on('error',e=>{ showLobby(true); lobbyError(peerErrMsg(e)); });
     clearInterval(NET.hbTimer); NET.hbTimer=setInterval(hostHeartbeat,1000);
   }
+  function updateHostHint(){                              // host-only lobby status line: who's still linking up
+    if(NET.mode!=='host' || lobbyEl.classList.contains('hidden')) return;
+    lobbyMsgEl.style.color='';
+    lobbyMsgEl.textContent = NET.pending>0
+      ? `A friend is linking up… (${NET.pending} connecting)`
+      : 'Share the room code. Press START MATCH when everyone is in.';
+  }
+  function hostPending(delta, conn){                      // count pre-open connection attempts, at most once per conn
+    if(conn){ const want=delta>0; if(!!conn._pend===want) return; conn._pend=want; }
+    NET.pending=Math.max(0,(NET.pending||0)+delta);
+    updateHostHint();
+  }
   function setupHostConn(conn){
+    hostPending(+1, conn);                                // a friend is attempting to connect
+    const pendT=setTimeout(()=>{ if(conn._pend){ hostPending(-1,conn); try{conn.close();}catch(e){} } }, 25000);  // give up on a stalled handshake
     conn.on('open',()=>{
+      clearTimeout(pendT);
       conn._seen=performance.now();
-      if(state==='playing'||state==='countdown'){ try{conn.send({t:'busy'});}catch(e){} setTimeout(()=>{try{conn.close();}catch(e){}},400); return; }
+      if(state==='playing'||state==='countdown'){ hostPending(-1,conn); try{conn.send({t:'busy'});}catch(e){} setTimeout(()=>{try{conn.close();}catch(e){}},400); return; }
       const slot=slots.findIndex(s=>s.type==='cpu');
-      if(slot<0){ try{conn.send({t:'full'});}catch(e){} setTimeout(()=>{try{conn.close();}catch(e){}},400); return; }
+      if(slot<0){ hostPending(-1,conn); try{conn.send({t:'full'});}catch(e){} setTimeout(()=>{try{conn.close();}catch(e){}},400); return; }
       slots[slot]={char:slot, type:'remote', name:'P'+(slot+1), conn};
       NET.conns.push(conn);
+      hostPending(-1,conn);                               // linked up → clears the "connecting" hint, slot now shows ✓ CONNECTED
       try{ conn.send({t:'welcome', slot, slots:serializeSlots()}); }catch(e){}
       broadcastLobby(); renderLobby();
     });
     conn.on('data',d=>onHostData(conn,d));
-    conn.on('close',()=>handleClientGone(conn));
-    conn.on('error',()=>handleClientGone(conn));
+    conn.on('close',()=>{ clearTimeout(pendT); hostPending(-1,conn); handleClientGone(conn); });
+    conn.on('error',()=>{ clearTimeout(pendT); hostPending(-1,conn); handleClientGone(conn); });
   }
   function handleClientGone(conn){
     const i=slots.findIndex(s=>s.conn===conn);
