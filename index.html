@@ -1541,19 +1541,26 @@
 
   // ============ ONLINE MULTIPLAYER (PeerJS, host-authoritative) — Stage 1: connection + lobby ============
   const NET={ mode:'off', peer:null, conns:[], hostConn:null, code:null, mySlot:0, opened:false, kicked:false, pending:0 };
-  // WebRTC ICE servers. STUN (below) is free and needs no signup — it lets players on ordinary home
-  // WiFi punch through their routers and connect directly. STUN is NOT enough for players on mobile
-  // data, work/school WiFi, or ISPs using CGNAT/symmetric NAT — those need a TURN relay, which costs
-  // bandwidth and so has no reliable free no-signup option. For any-network play, grab free TURN
-  // creds (Cloudflare Realtime or metered.ca, ~5 min) and add a line like:
-  //   { urls:'turn:HOST:3478', username:'USER', credential:'PASS' },
+  // TURN relay endpoint: paste your deployed Cloudflare Worker URL here (see cloudflare-turn-worker.js).
+  // It hands out short-lived Cloudflare TURN credentials so play works on ANY network (hotel WiFi,
+  // mobile data, CGNAT). Leave '' to fall back to STUN-only (direct connections only).
+  const TURN_ENDPOINT='';
+  // STUN-only fallback — free, no signup, but only connects players on friendly home networks.
   const ICE_SERVERS=[
     { urls:'stun:stun.l.google.com:19302' },
     { urls:'stun:stun1.l.google.com:19302' },
     { urls:'stun:stun2.l.google.com:19302' },
     { urls:'stun:stun.cloudflare.com:3478' },
   ];
-  const PEER_OPTS={ config:{ iceServers:ICE_SERVERS } };
+  // Resolve the ICE server list: Cloudflare TURN (via the Worker) when configured, else STUN-only.
+  async function getIce(){
+    if(TURN_ENDPOINT){
+      try{ const r=await fetch(TURN_ENDPOINT,{cache:'no-store'});
+        if(r.ok){ const j=await r.json(); if(Array.isArray(j.iceServers) && j.iceServers.length) return j.iceServers.concat(ICE_SERVERS); } }
+      catch(e){ console.warn('TURN endpoint unreachable, falling back to STUN-only',e); }
+    }
+    return ICE_SERVERS;
+  }
   function peerErrMsg(e){
     const t=(e&&e.type)||'';
     if(t==='peer-unavailable')   return 'No room with that code — double-check it, and make sure the host is sitting on the lobby screen.';
@@ -1619,12 +1626,13 @@
   }
   function broadcastLobby(){ const data={t:'lobby', slots:serializeSlots()}; NET.conns.forEach(c=>{ try{c.send(data);}catch(e){} }); }
   // ---- host ----
-  function hostOnline(){
+  async function hostOnline(){
     if(!window.Peer){ alert('Networking failed to load (needs internet).'); return; }
     if(!boarReady){ return; }
     NET.mode='host'; NET.code=randCode(); NET.mySlot=0; NET.pending=0; SND.start();
     slots[0]={char:0,type:'local',name:myName()}; slots[1]={char:1,type:'cpu'}; slots[2]={char:2,type:'cpu'}; slots[3]={char:3,type:'cpu'};
-    NET.peer=new Peer('frjd-'+NET.code, PEER_OPTS);
+    const ice=await getIce(); if(NET.mode!=='host') return;          // resolve TURN creds before opening the peer
+    NET.peer=new Peer('frjd-'+NET.code, {config:{iceServers:ice}});
     NET.peer.on('open',()=>showLobby(true));
     NET.peer.on('connection',conn=>setupHostConn(conn));
     NET.peer.on('error',e=>{ showLobby(true); lobbyError(peerErrMsg(e)); });
@@ -1683,11 +1691,12 @@
     else if(d.t==='input'){ slots[i].input=d; }
   }
   // ---- client ----
-  function joinOnline(code){
+  async function joinOnline(code){
     if(!window.Peer){ alert('Networking failed to load (needs internet).'); return; }
     NET.mode='client'; NET.code=code; NET.mySlot=-1; NET.opened=false; NET.kicked=false;
     NET.lastHostMsg=performance.now(); NET.joinedAt=performance.now(); SND.start();
-    NET.peer=new Peer(undefined, PEER_OPTS);
+    const ice=await getIce(); if(NET.mode!=='client') return;        // resolve TURN creds before opening the peer
+    NET.peer=new Peer(undefined, {config:{iceServers:ice}});
     NET.peer.on('open',()=>{ const conn=NET.peer.connect('frjd-'+code,{reliable:true}); NET.hostConn=conn; setupClientConn(conn); showLobby(false); });
     NET.peer.on('error',e=>{ if(NET.kicked) return; showLobby(false); lobbyError(peerErrMsg(e)); });
     clearInterval(NET.checkTimer); NET.checkTimer=setInterval(clientCheck,1000);
