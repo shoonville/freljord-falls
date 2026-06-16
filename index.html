@@ -116,6 +116,11 @@
   #vol::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;
     background:#9fe4ff;border:2px solid #06243a;cursor:pointer}
   #vol::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#9fe4ff;border:2px solid #06243a;cursor:pointer}
+  #netstat{position:fixed;top:12px;left:14px;z-index:30;display:none;
+    font:bold 13px/1 system-ui,Segoe UI,sans-serif;letter-spacing:.5px;padding:7px 11px;border-radius:9px;
+    background:rgba(8,26,40,.78);border:1px solid rgba(159,228,255,.22);color:#cfe9ff;
+    box-shadow:0 3px 10px rgba(0,0,0,.4);user-select:none;pointer-events:none}
+  #netstat .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
   #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
     z-index:20;color:#8fb8d6;font-size:18px;letter-spacing:2px}
   #boltCd{position:fixed;transform:translate(-50%,-100%);z-index:6;font-size:26px;font-weight:bold;
@@ -148,6 +153,7 @@
   <div class="pcard" id="card2"></div>
   <div class="pcard" id="card3"></div>
 </div>
+<div id="netstat"></div>
 
 <div id="overlay">
   <h1>Freljord Falls</h1>
@@ -1742,6 +1748,40 @@
     else if(d.t==='roundover'){ round=d.round; showRoundResult(d.standings); }
     else if(d.t==='matchover'){ showFinal(d.standings); }
   }
+  // ---- connection badge: DIRECT vs RELAY (+ ping) so you can see when a session is going through the TURN relay ----
+  const netstatEl=document.getElementById('netstat');
+  function connPC(conn){ return (conn && (conn.peerConnection || conn._pc)) || null; }
+  async function probeConn(pc){
+    try{
+      if(!pc || !pc.getStats) return null;
+      const stats=await pc.getStats(); let pair=null, tPairId=null;
+      stats.forEach(r=>{ if(r.type==='transport' && r.selectedCandidatePairId) tPairId=r.selectedCandidatePairId; });
+      stats.forEach(r=>{ if(r.type!=='candidate-pair') return;
+        if(tPairId){ if(r.id===tPairId) pair=r; }
+        else if((r.selected||r.nominated) && r.state==='succeeded' && (!pair||(r.bytesReceived||0)>(pair.bytesReceived||0))) pair=r; });
+      if(!pair) return null;
+      const loc=stats.get&&stats.get(pair.localCandidateId), rem=stats.get&&stats.get(pair.remoteCandidateId);
+      const relay=(loc&&loc.candidateType==='relay')||(rem&&rem.candidateType==='relay');
+      const rtt=(pair.currentRoundTripTime!=null)?Math.round(pair.currentRoundTripTime*1000):null;
+      return { relay:!!relay, rtt };
+    }catch(e){ return null; }
+  }
+  function showNetstat(html){ if(netstatEl){ netstatEl.innerHTML=html; netstatEl.style.display='block'; } }
+  async function netstatTick(){
+    if(!netstatEl) return;
+    if(NET.mode==='host'){
+      const n=NET.conns.length;
+      showNetstat(`<span class="dot" style="background:#7CFC9A"></span>HOST · no lag${n?` · ${n} linked`:''}`); return;
+    }
+    if(NET.mode==='client' && NET.hostConn){
+      const info=await probeConn(connPC(NET.hostConn));
+      if(!info){ showNetstat('<span class="dot" style="background:#9fb0bf"></span>LINKING…'); return; }
+      const col=info.relay?'#ffb04a':'#7CFC9A', label=info.relay?'RELAY':'DIRECT';
+      showNetstat(`<span class="dot" style="background:${col}"></span>${label}${info.rtt!=null?` · ${info.rtt}ms`:''}`); return;
+    }
+    netstatEl.style.display='none';
+  }
+  setInterval(netstatTick, 1000);
   function leaveLobby(){
     clearInterval(NET.hbTimer); clearInterval(NET.checkTimer);
     try{ NET.conns.forEach(c=>c.close()); }catch(e){}
