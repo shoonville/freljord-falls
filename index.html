@@ -1839,7 +1839,9 @@
         const disturbed = !!(bd[11]||bd[12]) || bd[5]!==1 || bd[6]===1 || bd[1]<-0.4;  // stun/knock/dead/stasis/falling
         if(b._predict===undefined){ b.px=bd[0]; b.pz=bd[2]; b.pvx=0; b.pvz=0; b.pheading=bd[3]; b.pdashT=0; b.pdashCd=0; b._predict=true; }
         const err=Math.hypot((b.px||0)-bd[0],(b.pz||0)-bd[2]);
-        if(disturbed || err>2.2){ b.px=bd[0]; b.pz=bd[2]; b.pvx=0; b.pvz=0; b.pheading=bd[3]; b.pdashT=0; }  // snap to truth on collisions / big desync
+        // only HARD snap on host-driven states or teleport-scale desync (respawn/round reset);
+        // normal latency offset is eased away smoothly in predictLocal so it never rubber-bands
+        if(disturbed || err>9){ b.px=bd[0]; b.pz=bd[2]; b.pvx=0; b.pvz=0; b.pheading=bd[3]; b.pdashT=0; }
         b._disturbed=disturbed;
       }
     });
@@ -1880,8 +1882,10 @@
       const nx=b.px/d, nz=b.pz/d; b.px=nx*(R_OUT-r); b.pz=nz*(R_OUT-r);
       const vn=b.pvx*nx+b.pvz*nz; if(vn>0){ b.pvx-=1.6*vn*nx; b.pvz-=1.6*vn*nz; }
     }
-    // bleed off residual offset only when nearly stopped, so we don't rubber-band mid-motion
-    if(sp<3 && b._authx!==undefined){ const c=1-Math.exp(-6*dt); b.px+=(b._authx-b.px)*c; b.pz+=(b._authz-b.pz)*c; }
+    // continuously ease toward the authoritative position instead of snapping: firm when slow
+    // (offsets are tiny then, so it's invisible), very gentle at speed (so it never drags/rubber-bands)
+    if(b._authx!==undefined){ const rate=Math.max(1, 5-0.3*sp); const c=1-Math.exp(-rate*dt);
+      b.px+=(b._authx-b.px)*c; b.pz+=(b._authz-b.pz)*c; }
   }
   function clientUpdate(dt){
     elapsed+=dt; auroraMat.uniforms.t.value=elapsed; waterMat.uniforms.t.value=elapsed;
