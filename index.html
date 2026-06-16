@@ -1775,7 +1775,7 @@
   function buildSnapshot(){
     return { t:'snap', st:state, tl:Math.round(timeLeft*10)/10, rd:round,
       bears: bears.map(b=>[R2(b.group.position.x),R2(b.group.position.y),R2(b.group.position.z),R2(b.group.rotation.y),R2(b.size||1),
-        b.alive?1:0, b.stasisT>0?1:0, Math.round(b.stamina), b.lives, b.hasGlass?1:0, b.hasTornado?1:0, b.stunT>0?1:0, b.knockT>0?1:0]),
+        b.alive?1:0, b.stasisT>0?1:0, Math.round(b.stamina), b.lives, b.hasGlass?1:0, b.hasTornado?1:0, b.stunT>0?1:0, b.knockT>0?1:0, b.speedT>0?1:0]),
       pups: pups.map(p=>[p.id, p.def.type, R2(p.m.position.x), R2(p.m.position.y), R2(p.m.position.z), R2(p.m.rotation.y)]),
       bolt: boltHolder?[bears.indexOf(boltHolder), Math.max(0,Math.ceil(boltTimer))]:null,
       anvil: anvilHolder?[bears.indexOf(anvilHolder), Math.max(0,Math.ceil(anvilTimer))]:null,
@@ -1831,7 +1831,17 @@
       b.x=bd[0]; b.z=bd[2];
       const aliveNow=bd[5]===1; b.alive=aliveNow; b.group.visible=aliveNow;
       const goldNow=bd[6]===1; if(goldNow&&!b._gold){ setGolden(b.group,true); b._gold=true; } else if(!goldNow&&b._gold){ setGolden(b.group,false); b._gold=false; }
-      b.stamina=bd[7]; b.lives=bd[8]; b.hasGlass=bd[9]===1; b.hasTornado=bd[10]===1; b.stunT=bd[11]?1:0; b.knockT=bd[12]?1:0;
+      b.stamina=bd[7]; b.lives=bd[8]; b.hasGlass=bd[9]===1; b.hasTornado=bd[10]===1; b.stunT=bd[11]?1:0; b.knockT=bd[12]?1:0; b._speed=bd[13]===1;
+      // client-side prediction reconcile for your OWN bear (host stays authoritative)
+      if(NET.mode==='client' && i===NET.mySlot){
+        b._authx=bd[0]; b._authz=bd[2]; b.pstam=bd[7];
+        // host-driven states we can't predict -> hand rendering back to the snapshot stream
+        const disturbed = !!(bd[11]||bd[12]) || bd[5]!==1 || bd[6]===1 || bd[1]<-0.4;  // stun/knock/dead/stasis/falling
+        if(b._predict===undefined){ b.px=bd[0]; b.pz=bd[2]; b.pvx=0; b.pvz=0; b.pheading=bd[3]; b.pdashT=0; b.pdashCd=0; b._predict=true; }
+        const err=Math.hypot((b.px||0)-bd[0],(b.pz||0)-bd[2]);
+        if(disturbed || err>2.2){ b.px=bd[0]; b.pz=bd[2]; b.pvx=0; b.pvz=0; b.pheading=bd[3]; b.pdashT=0; }  // snap to truth on collisions / big desync
+        b._disturbed=disturbed;
+      }
     });
     boltHolder = s.bolt? (bears[s.bolt[0]]||null) : null; boltTimer = s.bolt? s.bolt[1] : 0; liveBolt.visible=!!s.bolt;
     anvilHolder = s.anvil? (bears[s.anvil[0]]||null) : null; anvilTimer = s.anvil? s.anvil[1] : 0; liveAnvil.visible=!!s.anvil;
@@ -1839,10 +1849,53 @@
     ufo.position.set(s.ufo[0],s.ufo[1],s.ufo[2]);
   }
   let cInputAcc=0;
+  // ---- client-side prediction: move YOUR bear instantly on local input, integrating the same
+  //      physics as the host's update(); the host's snapshots stay authoritative and correct it. ----
+  function predictLocal(b, dt){
+    const accelB=30, maxvB=14;                 // must match update()
+    let ax=0, az=0;
+    if(keys['a']||keys['arrowleft'])ax-=1; if(keys['d']||keys['arrowright'])ax+=1;
+    if(keys['w']||keys['arrowup'])az-=1; if(keys['s']||keys['arrowdown'])az+=1;
+    const inDash=!!keys[' '];
+    const m=Math.hypot(ax,az); if(m>0){ax/=m;az/=m;}
+    const slow=(b._ts&&b._ts<1)?0.6:1;          // shrunk = slower (size<1)
+    const boost=!!b._speed;                      // speed pad active (from snapshot)
+    const accel=accelB*(boost?1.4:1)*slow;
+    b.pvx+=ax*accel*dt; b.pvz+=az*accel*dt;
+    b.pvx*=Math.exp(-1.25*dt); b.pvz*=Math.exp(-1.25*dt);
+    if(b.pdashCd>0)b.pdashCd-=dt; if(b.pdashT>0)b.pdashT-=dt;
+    b.pstam=Math.min(100,(b.pstam||0)+25*dt);
+    if(inDash && b.pdashCd<=0 && b.pstam>=50){   // predict the dash so it feels instant
+      b.pdashT=DASH_TIME; b.pdashCd=DASH_CD; b.pstam-=50;
+      b.pvx+=Math.sin(b.pheading)*DASH_IMP; b.pvz+=Math.cos(b.pheading)*DASH_IMP;
+      burst(b.px-Math.sin(b.pheading), 0.8, b.pz-Math.cos(b.pheading), sparkMat,6,3,2);
+      SND.sfx('dash');
+    }
+    const maxNow=maxvB*(boost?1.5:1)*(b.pdashT>0?2.2:1)*slow;
+    const sp=Math.hypot(b.pvx,b.pvz); if(sp>maxNow){b.pvx=b.pvx/sp*maxNow; b.pvz=b.pvz/sp*maxNow;}
+    b.px+=b.pvx*dt; b.pz+=b.pvz*dt;
+    if(sp>0.6) b.pheading=Math.atan2(b.pvx,b.pvz);
+    const d=Math.hypot(b.px,b.pz), r=BR*(b._ts||1);    // intact-rim bounce (host owns breaking/falling)
+    if(d>R_OUT-r && segs[segIndex(b.px,b.pz)].state<2){
+      const nx=b.px/d, nz=b.pz/d; b.px=nx*(R_OUT-r); b.pz=nz*(R_OUT-r);
+      const vn=b.pvx*nx+b.pvz*nz; if(vn>0){ b.pvx-=1.6*vn*nx; b.pvz-=1.6*vn*nz; }
+    }
+    // bleed off residual offset only when nearly stopped, so we don't rubber-band mid-motion
+    if(sp<3 && b._authx!==undefined){ const c=1-Math.exp(-6*dt); b.px+=(b._authx-b.px)*c; b.pz+=(b._authz-b.pz)*c; }
+  }
   function clientUpdate(dt){
     elapsed+=dt; auroraMat.uniforms.t.value=elapsed; waterMat.uniforms.t.value=elapsed;
+    const me=(NET.mySlot>=0)?bears[NET.mySlot]:null;
+    const predicting = !!(me && me._predict && !me._disturbed && state==='playing');
+    if(predicting) predictLocal(me, dt);
     const k=1-Math.exp(-16*dt);
     for(const b of bears){ if(b._tx===undefined) continue; const g=b.group;
+      if(b===me && predicting){                  // your bear: driven by local prediction
+        g.position.x=me.px; g.position.z=me.pz; g.position.y+=(b._ty-g.position.y)*k;   // height (bob/knock) from host
+        let dh=me.pheading-g.rotation.y; while(dh>Math.PI)dh-=2*Math.PI; while(dh<-Math.PI)dh+=2*Math.PI; g.rotation.y+=dh*(1-Math.exp(-22*dt));
+        const sc=b._ts||1; g.scale.x+=(sc-g.scale.x)*k; g.scale.y+=(sc-g.scale.y)*k; g.scale.z+=(sc-g.scale.z)*k;
+        continue;
+      }
       g.position.x+=(b._tx-g.position.x)*k; g.position.y+=(b._ty-g.position.y)*k; g.position.z+=(b._tz-g.position.z)*k;
       let d=b._try-g.rotation.y; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; g.rotation.y+=d*k;
       const sc=b._ts||1; g.scale.x+=(sc-g.scale.x)*k; g.scale.y+=(sc-g.scale.y)*k; g.scale.z+=(sc-g.scale.z)*k; }
