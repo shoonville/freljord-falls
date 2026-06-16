@@ -1941,10 +1941,11 @@
       const nx=b.px/d, nz=b.pz/d; b.px=nx*(R_OUT-r); b.pz=nz*(R_OUT-r);
       const vn=b.pvx*nx+b.pvz*nz; if(vn>0){ b.pvx-=1.6*vn*nx; b.pvz-=1.6*vn*nz; }
     }
-    // continuously ease toward the authoritative position instead of snapping: firm when slow
-    // (offsets are tiny then, so it's invisible), very gentle at speed (so it never drags/rubber-bands)
-    if(b._authx!==undefined){ const rate=Math.max(1, 5-0.3*sp); const c=1-Math.exp(-rate*dt);
-      b.px+=(b._authx-b.px)*c; b.pz+=(b._authz-b.pz)*c; }
+    // Bound long-term drift WITHOUT fighting your input: ignore error inside a deadzone (this covers the
+    // normal latency offset, so starting/stopping/turning stays 100% input-driven and instant), and only
+    // very gently ease the EXCESS beyond it. The old code pulled hardest when slow -> sticky, ping-coupled feel.
+    if(b._authx!==undefined){ const ex=b._authx-b.px, ez=b._authz-b.pz, e=Math.hypot(ex,ez);
+      if(e>0.5){ const g=((e-0.5)/e)*(1-Math.exp(-2*dt)); b.px+=ex*g; b.pz+=ez*g; } }
   }
   // sample a bear's snapshot buffer at time `target` (linear interp between the two straddling samples,
   // mild capped extrapolation past the newest sample so brief network jitter doesn't freeze motion)
