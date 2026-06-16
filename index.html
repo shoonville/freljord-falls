@@ -1824,7 +1824,7 @@
   let netAcc=0;
   function netHostTick(dt){
     if(NET.mode!=='host' || !NET.conns.length || (state!=='playing'&&state!=='countdown')) return;
-    netAcc+=dt; if(netAcc<0.05) return; netAcc=0;          // ~20 snapshots/sec
+    netAcc+=dt; if(netAcc<0.033) return; netAcc=0;         // ~30 snapshots/sec (smoother remote motion)
     const snap=buildSnapshot();
     NET.conns.forEach(c=>{ try{c.send(snap);}catch(e){} });
   }
@@ -1882,6 +1882,7 @@
   function applySnap(s){
     if(!bears.length) return;
     state=s.st; timeLeft=s.tl; if(s.rd!==undefined) round=s.rd;
+    const tnow=performance.now()/1000;
     s.bears.forEach((bd,i)=>{ const b=bears[i]; if(!b) return;
       b._tx=bd[0]; b._ty=bd[1]; b._tz=bd[2]; b._try=bd[3]; b._ts=bd[4];
       b.x=bd[0]; b.z=bd[2];
@@ -1900,6 +1901,8 @@
         if(disturbed || err>9){ b.px=bd[0]; b.pz=bd[2]; b.pvx=0; b.pvz=0; b.pheading=bd[3]; b.pdashT=0; }
         b._disturbed=disturbed;
       }
+      (b._buf||(b._buf=[])).push({t:tnow, x:bd[0], y:bd[1], z:bd[2], ry:bd[3], s:bd[4]});  // timestamped buffer for smooth interpolation
+      if(b._buf.length>48) b._buf.shift();
     });
     boltHolder = s.bolt? (bears[s.bolt[0]]||null) : null; boltTimer = s.bolt? s.bolt[1] : 0; liveBolt.visible=!!s.bolt;
     anvilHolder = s.anvil? (bears[s.anvil[0]]||null) : null; anvilTimer = s.anvil? s.anvil[1] : 0; liveAnvil.visible=!!s.anvil;
@@ -1943,22 +1946,43 @@
     if(b._authx!==undefined){ const rate=Math.max(1, 5-0.3*sp); const c=1-Math.exp(-rate*dt);
       b.px+=(b._authx-b.px)*c; b.pz+=(b._authz-b.pz)*c; }
   }
+  // sample a bear's snapshot buffer at time `target` (linear interp between the two straddling samples,
+  // mild capped extrapolation past the newest sample so brief network jitter doesn't freeze motion)
+  const INTERP_DELAY=0.12;
+  function sampleBuf(buf, target){
+    if(!buf||!buf.length) return null;
+    if(target<=buf[0].t) return buf[0];
+    const last=buf[buf.length-1];
+    if(target>=last.t){
+      if(buf.length>=2){ const prev=buf[buf.length-2], span=last.t-prev.t;
+        if(span>0){ const f=Math.min(target-last.t,0.1)/span;
+          let dry=last.ry-prev.ry; while(dry>Math.PI)dry-=2*Math.PI; while(dry<-Math.PI)dry+=2*Math.PI;
+          return { x:last.x+(last.x-prev.x)*f, y:last.y, z:last.z+(last.z-prev.z)*f, ry:last.ry+dry*f, s:last.s }; } }
+      return last;
+    }
+    for(let i=buf.length-1;i>0;i--){ const a=buf[i-1], c=buf[i];
+      if(a.t<=target && target<=c.t){ const span=c.t-a.t||1, f=(target-a.t)/span;
+        let dry=c.ry-a.ry; while(dry>Math.PI)dry-=2*Math.PI; while(dry<-Math.PI)dry+=2*Math.PI;
+        return { x:a.x+(c.x-a.x)*f, y:a.y+(c.y-a.y)*f, z:a.z+(c.z-a.z)*f, ry:a.ry+dry*f, s:a.s+(c.s-a.s)*f }; } }
+    return last;
+  }
   function clientUpdate(dt){
     elapsed+=dt; auroraMat.uniforms.t.value=elapsed; waterMat.uniforms.t.value=elapsed;
     const me=(NET.mySlot>=0)?bears[NET.mySlot]:null;
     const predicting = !!(me && me._predict && !me._disturbed && state==='playing');
     if(predicting) predictLocal(me, dt);
     const k=1-Math.exp(-16*dt);
+    const rt=(performance.now()/1000)-INTERP_DELAY;     // render others slightly in the past for smooth interpolation
     for(const b of bears){ if(b._tx===undefined) continue; const g=b.group;
-      if(b===me && predicting){                  // your bear: driven by local prediction
+      if(b===me && predicting){                  // your bear: driven by local prediction (real-time)
         g.position.x=me.px; g.position.z=me.pz; g.position.y+=(b._ty-g.position.y)*k;   // height (bob/knock) from host
         let dh=me.pheading-g.rotation.y; while(dh>Math.PI)dh-=2*Math.PI; while(dh<-Math.PI)dh+=2*Math.PI; g.rotation.y+=dh*(1-Math.exp(-22*dt));
         const sc=b._ts||1; g.scale.x+=(sc-g.scale.x)*k; g.scale.y+=(sc-g.scale.y)*k; g.scale.z+=(sc-g.scale.z)*k;
         continue;
       }
-      g.position.x+=(b._tx-g.position.x)*k; g.position.y+=(b._ty-g.position.y)*k; g.position.z+=(b._tz-g.position.z)*k;
-      let d=b._try-g.rotation.y; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; g.rotation.y+=d*k;
-      const sc=b._ts||1; g.scale.x+=(sc-g.scale.x)*k; g.scale.y+=(sc-g.scale.y)*k; g.scale.z+=(sc-g.scale.z)*k; }
+      // everyone else: interpolate between buffered snapshots (smooth regardless of jitter) instead of chasing the latest
+      const sm=sampleBuf(b._buf, rt);
+      if(sm){ g.position.set(sm.x, sm.y, sm.z); g.rotation.y=sm.ry; const sc=sm.s||1; g.scale.set(sc,sc,sc); } }
     if(boltHolder){ liveBolt.position.set(boltHolder.group.position.x,3.5,boltHolder.group.position.z); liveBolt.rotation.y+=dt*5; }
     if(anvilHolder){ liveAnvil.position.set(anvilHolder.group.position.x,3.0,anvilHolder.group.position.z); liveAnvil.rotation.y+=dt*1.3; }
     cTorn.forEach(tm=>{ if(tm.visible) tm.rotation.y+=dt*16; });
