@@ -1075,7 +1075,8 @@
         hasGlass:false, stasisT:0, wantGlass:false,
         hasTornado:false, wantTornado:false, knockT:0, _shiftPrev:false};
     });
-    bears.forEach(b=>{ b.group.position.set(b.x,0,b.z); b.group.rotation.y=b.heading; });
+    bears.forEach(b=>{ b.group.position.set(b.x,0,b.z); b.group.rotation.y=b.heading;
+      if(b.ring) b.ring.visible=isMe(b.idx); });   // ground ring marks only the player you control
   }
   function resetArena(){
     segs.forEach(s=>{ s.state=0; s.cool=0; s.g.visible=true;
@@ -1376,8 +1377,9 @@
           else if(c===anvilHolder && a!==anvilHolder){ anvilHolder=a; anvilGrace=0.7; SND.sfx('hit'); }
         }
         const mid={x:(a.x+c.x)/2,z:(a.z+c.z)/2};
-        if(aD&&!cD){ if(!cImm){ c.vx+=nx*DASH_BONUS;c.vz+=nz*DASH_BONUS; } burst(mid.x,1,mid.z,sparkMat,12,5,3); SND.sfx('hit');}
-        else if(cD&&!aD){ if(!aImm){ a.vx-=nx*DASH_BONUS;a.vz-=nz*DASH_BONUS; } burst(mid.x,1,mid.z,sparkMat,12,5,3); SND.sfx('hit');}
+        // dash into a rival who didn't dash back -> double knockback (they get slammed 2x as far)
+        if(aD&&!cD){ if(!cImm){ c.vx+=nx*DASH_BONUS*2;c.vz+=nz*DASH_BONUS*2; } burst(mid.x,1,mid.z,sparkMat,12,5,3); SND.sfx('hit');}
+        else if(cD&&!aD){ if(!aImm){ a.vx-=nx*DASH_BONUS*2;a.vz-=nz*DASH_BONUS*2; } burst(mid.x,1,mid.z,sparkMat,12,5,3); SND.sfx('hit');}
         else if(aD&&cD){ burst(mid.x,1,mid.z,sparkMat,10,5,3); SND.sfx('hit');}
       }
     }
@@ -1874,6 +1876,7 @@
     SND.setMusicVolume(v/100); };
   const loadingEl=document.getElementById('loading');
   function finishReady(){
+    if(boarReady) return;                 // idempotent: watchdog + real load can both call this
     boarReady=true; loadingEl.style.display='none';
     window.__riderLoaded=riderTemplates.map(t=>!!t); window.__boarTop=boarDims?boarDims.top:null;
     spawn(); bears.forEach(b=>{ b.group.position.set(b.x,0,b.z); b.group.rotation.y=b.heading; });
@@ -1898,6 +1901,9 @@
   }
   function bootModel(){
     loadPilot();
+    // watchdog: if a model fetch ever stalls with no callback (e.g. a busy single-threaded
+    // dev server), start anyway after 12s with the fallback model instead of hanging on "LOADING ICE…"
+    setTimeout(()=>{ if(!boarReady){ console.warn('model load stalled — starting with fallback'); finishReady(); } }, 12000);
     const afterBoar=()=>{ loadingEl.textContent='LOADING RIDERS…'; loadRiders(finishReady); };
     if(!TH.GLTFLoader){ console.warn('GLTFLoader unavailable — using fallback model'); finishReady(); return; }
     try{
